@@ -32,21 +32,21 @@ else:
                             
                             with grid_cols[j]:
                                 with st.container(border=True):
-                                    # Tightened ratios: [Button, Name, Qty]
-                                    col_btn, col_name, col_qty = st.columns([1, 2.5, 1.2], vertical_alignment="center", gap="small")
+                                    # Balanced ratios for better text wrapping
+                                    col_btn, col_name, col_qty = st.columns([0.5, 2, 1], vertical_alignment="center", gap="small")
                                     
                                     with col_btn:
-                                        btn_label = "✅" if needed <= 0 else "➕ Log 1"
-                                        if st.button(btn_label, key=f"btn_{row['Product']}_{i+j}", disabled=(needed <= 0), use_container_width=True):
-                                            if db_utils.log_production(row['Product']):
+                                        btn_label = "✅" if needed <= 0 else "ADD"
+                                        if st.button(btn_label, key=f"btn_{row['product_id']}_{week}", disabled=(needed <= 0), use_container_width=True):
+                                            if db_utils.log_production(row['product_id']):
                                                 st.toast(f"Logged 1 {row['Product']}!", icon="🌸")
                                                 st.rerun()
                                     
                                     with col_name:
-                                        st.markdown(f"**{row['Product']}**" if needed > 0 else f"~~{row['Product']}~~")
+                                        st.markdown(f"### **{row['Product']}**" if needed > 0 else f"~~{row['Product']}~~")
                                     
                                     with col_qty:
-                                        st.markdown(f"**{needed}** left" if needed > 0 else "Done")
+                                        st.markdown(f"### **{needed}** left" if needed > 0 else "Done")
         else:
             st.info("No production goals set for the coming weeks.")
 

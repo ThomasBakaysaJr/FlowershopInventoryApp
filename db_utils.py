@@ -14,7 +14,7 @@ def get_weekly_production_goals():
     
     conn = get_connection()
     query = """
-    SELECT p.display_name as Product, pg.due_date as Due, pg.qty_ordered, pg.qty_made
+    SELECT p.product_id, p.display_name as Product, pg.due_date as Due, pg.qty_ordered, pg.qty_made
     FROM production_goals pg
     JOIN products p ON pg.product_id = p.product_id
     """
@@ -28,7 +28,7 @@ def get_weekly_production_goals():
     df['Due'] = pd.to_datetime(df['Due'])
     df['Week Starting'] = df['Due'].dt.to_period('W').apply(lambda r: r.start_time.strftime('%b %d, %Y'))
     
-    summary = df.groupby(['Week Starting', 'Product']).agg({
+    summary = df.groupby(['Week Starting', 'product_id', 'Product']).agg({
         'qty_ordered': 'sum',
         'qty_made': 'sum'
     }).reset_index()
@@ -43,16 +43,11 @@ def get_inventory():
     conn.close()
     return df
 
-def log_production(product_name):
+def log_production(p_id):
     """Increments production count and deducts inventory (BOM)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        # 1. Get product_id
-        cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
-        res = cursor.fetchone()
-        if not res: return False
-        p_id = res[0]
 
         # 2. Find earliest incomplete goal for this product
         cursor.execute("""
@@ -68,7 +63,12 @@ def log_production(product_name):
             
             # 3. Deduct Inventory (Bill of Materials)
             cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
-            for i_id, qty in cursor.fetchall():
+            recipe_items = cursor.fetchall()
+            
+            if not recipe_items:
+                print(f"Warning: No recipe found for product_id {p_id}")
+                
+            for i_id, qty in recipe_items:
                 cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
             
             conn.commit()
