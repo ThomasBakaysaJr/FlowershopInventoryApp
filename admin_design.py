@@ -52,7 +52,7 @@ def render_design_tab(inventory_df):
         
         final_price = st.number_input("Final Selling Price ($)", min_value=0.0, step=1.0, key="final_price_input")
 
-        if st.button("💾 Save New Product", type="primary", use_container_width=True):
+        if st.button("💾 Save New Product", type="primary", width="stretch"):
             if prod_name and st.session_state.new_recipe:
                 img_bytes = None
                 if uploaded_file:
@@ -123,7 +123,7 @@ def render_design_tab(inventory_df):
             
             st.dataframe(
                 recipe_df[['name', 'qty', 'Subtotal']], 
-                use_container_width=True, 
+                width="stretch",
                 hide_index=True,
                 column_config={"Subtotal": st.column_config.NumberColumn(format="$%.2f")}
             )
@@ -140,7 +140,7 @@ def render_design_tab(inventory_df):
             with col_rem_qty:
                 qty_to_remove = st.number_input("Qty", min_value=1, value=1, step=1, key="rem_qty_input")
             with col_rem_btn:
-                if st.button("Remove", use_container_width=True):
+                if st.button("Remove", width="stretch"):
                     # Find the item in the list
                     target = next((i for i in st.session_state.new_recipe if i['id'] == item_to_remove_id), None)
                     if target:
@@ -154,6 +154,6 @@ def render_design_tab(inventory_df):
                             st.toast(f"Removed {qty_to_remove} {target['name']}", icon="➖")
                     st.rerun()
             
-            if st.button("Clear Entire Recipe", type="secondary", use_container_width=True):
+            if st.button("Clear Entire Recipe", type="secondary", width="stretch"):
                 st.session_state.new_recipe = []
                 st.rerun()

@@ -95,6 +95,53 @@ def log_production(p_id, week_start_str=None):
     finally:
         conn.close()
 
+def undo_production(p_id, week_start_str=None):
+    """Decrements production count and adds back inventory (BOM)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Find latest goal with progress for this product
+        query = """
+            SELECT goal_id FROM production_goals 
+            WHERE product_id = ? AND qty_made > 0 
+        """
+        params = [p_id]
+
+        if week_start_str:
+            # Filter by the specific week selected in the UI
+            start_date = pd.to_datetime(week_start_str).date()
+            end_date = start_date + pd.Timedelta(days=6)
+            query += " AND due_date BETWEEN ? AND ?"
+            params.extend([str(start_date), str(end_date)])
+
+        # Order by DESC to undo the most recent one first
+        query += " ORDER BY due_date DESC LIMIT 1"
+        
+        cursor.execute(query, params)
+        goal_res = cursor.fetchone()
+        
+        if goal_res:
+            g_id = goal_res[0]
+            cursor.execute("UPDATE production_goals SET qty_made = qty_made - 1 WHERE goal_id = ?", (g_id,))
+            
+            # Add back to Inventory (Bill of Materials)
+            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
+            recipe_items = cursor.fetchall()
+            
+            for i_id, qty in recipe_items:
+                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?", (qty, i_id))
+            
+            conn.commit()
+            return True
+        return False
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 def get_all_recipes():
     """Fetches all active product recipes with ingredient details."""
     conn = get_connection()
