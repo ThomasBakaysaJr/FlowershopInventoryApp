@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import db_utils
-from PIL import Image
-import io
+import utils
 
 def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")
@@ -57,18 +56,9 @@ def render_design_tab(inventory_df):
             if prod_name and st.session_state.new_recipe:
                 img_bytes = None
                 if uploaded_file:
-                    try:
-                        image = Image.open(uploaded_file)
-                        # Convert to RGB if RGBA (png) to ensure JPEG compatibility
-                        if image.mode in ("RGBA", "P"):
-                            image = image.convert("RGB")
-                        # Resize to max 800x800 to save DB space/bandwidth
-                        image.thumbnail((800, 800))
-                        img_byte_arr = io.BytesIO()
-                        image.save(img_byte_arr, format='JPEG', quality=85)
-                        img_bytes = img_byte_arr.getvalue()
-                    except Exception as e:
-                        st.error(f"Error processing image: {e}")
+                    img_bytes = utils.process_image(uploaded_file)
+                    if not img_bytes:
+                        st.error("Error processing image. Please check the file format.")
                         st.stop()
 
                 # Prepare list for DB: [(id, qty), ...]

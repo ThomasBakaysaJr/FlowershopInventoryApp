@@ -1,4 +1,15 @@
 import sqlite3
+import os
+import utils
+
+def load_image(product_name):
+    """Helper to load and compress test images from disk for seeding."""
+    # Convert "Dozen Red Roses" -> "dozen_red_roses.jpg"
+    filename = product_name.lower().replace(" ", "_") + ".jpg"
+    path = os.path.join("images", "test", filename)
+    if os.path.exists(path):
+        return utils.process_image(path)
+    return None
 
 def seed_database():
     connection = sqlite3.connect('inventory.db')
@@ -46,10 +57,11 @@ def seed_database():
     
     product_ids = {}
     for name, price in products_to_create:
+        img = load_image(name)
         cursor.execute('''
-            INSERT INTO products (display_name, selling_price, active)
-            VALUES (?, ?, ?)
-        ''', (name, price, 1))
+            INSERT INTO products (display_name, selling_price, image_data, active)
+            VALUES (?, ?, ?, ?)
+        ''', (name, price, img, 1))
         product_ids[name] = cursor.lastrowid
 
     # 3. Insert Recipes

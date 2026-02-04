@@ -1,5 +1,6 @@
 .venv/
 .vscode/
 inventory.db
+images/test/
 
 __pycache__/

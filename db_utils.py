@@ -14,7 +14,7 @@ def get_weekly_production_goals():
     
     conn = get_connection()
     query = """
-    SELECT p.product_id, p.display_name as Product, pg.due_date as Due, pg.qty_ordered, pg.qty_made
+    SELECT p.product_id, p.display_name as Product, p.image_data, pg.due_date as Due, pg.qty_ordered, pg.qty_made
     FROM production_goals pg
     JOIN products p ON pg.product_id = p.product_id
     """
@@ -30,7 +30,8 @@ def get_weekly_production_goals():
     
     summary = df.groupby(['Week Starting', 'product_id', 'Product']).agg({
         'qty_ordered': 'sum',
-        'qty_made': 'sum'
+        'qty_made': 'sum',
+        'image_data': 'first'
     }).reset_index()
     
     return summary
@@ -96,7 +97,7 @@ def get_all_recipes():
     """Fetches all active product recipes with ingredient details."""
     conn = get_connection()
     query = """
-    SELECT p.display_name as Product, p.selling_price as Price, i.name as Ingredient, r.qty_needed as Qty
+    SELECT p.display_name as Product, p.selling_price as Price, p.image_data, i.name as Ingredient, r.qty_needed as Qty
     FROM products p
     JOIN recipes r ON p.product_id = r.product_id
     JOIN inventory i ON r.item_id = i.item_id
