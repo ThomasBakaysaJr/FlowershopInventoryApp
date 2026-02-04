@@ -6,16 +6,56 @@ def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")
     st.caption("Build new products by selecting items from your inventory.")
 
+    # --- CLEAR INPUT TRIGGER ---
+    if st.session_state.get('should_clear_input'):
+        st.session_state.prod_name_input = ""
+        st.session_state.should_clear_input = False
+
     # Initialize session state for the recipe being built
     if 'new_recipe' not in st.session_state:
         st.session_state.new_recipe = [] # List of {'id': int, 'name': str, 'qty': int, 'cost': float}
+
+    # --- PRE-LOAD LOGIC (From Recipe Display Edit) ---
+    if 'design_edit_name' in st.session_state:
+        loaded_name = st.session_state.pop('design_edit_name')
+        loaded_price = st.session_state.pop('design_edit_price')
+        loaded_ingredients = st.session_state.pop('design_edit_ingredients')
+        
+        # 1. Set Name Input
+        st.session_state['prod_name_input'] = loaded_name
+        
+        # 2. Set Price Input & Prevent auto-overwrite
+        st.session_state['final_price_input'] = float(loaded_price)
+        st.session_state.last_suggested_price = float(loaded_price)
+        
+        # 3. Rebuild Recipe List
+        st.session_state.new_recipe = []
+        for ing in loaded_ingredients:
+            # Find item in inventory to get ID and Cost
+            match = inventory_df[inventory_df['name'] == ing['Ingredient']]
+            if not match.empty:
+                row = match.iloc[0]
+                st.session_state.new_recipe.append({
+                    'id': row['item_id'],
+                    'name': row['name'],
+                    'qty': ing['Qty'],
+                    'cost': row['unit_cost']
+                })
+        st.toast(f"Loaded '{loaded_name}' for editing.", icon="✏️")
 
     # --- INPUT SECTION ---
     col_details, col_builder = st.columns([1, 1.5], gap="large")
 
     with col_details:
         st.subheader("1. Product Details")
-        prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze")
+        prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze", key="prod_name_input")
+        
+        # Show existing image if it exists so user knows they don't need to re-upload
+        if prod_name:
+            current_img = db_utils.get_product_image(prod_name)
+            if current_img:
+                st.image(current_img, caption="Current Image (Will be kept if no new upload)", width=150)
+
         uploaded_file = st.file_uploader("Upload Thumbnail", type=['png', 'jpg', 'jpeg'])
         
         st.divider()
@@ -51,26 +91,54 @@ def render_design_tab(inventory_df):
         
         final_price = st.number_input("Final Selling Price ($)", min_value=0.0, step=1.0, key="final_price_input")
 
-        if st.button("💾 Save New Product", type="primary", width="stretch"):
+        if st.button("💾 Save / Update Product", type="primary", width="stretch"):
             if prod_name and st.session_state.new_recipe:
-                img_bytes = None
-                if uploaded_file:
-                    img_bytes = utils.process_image(uploaded_file)
-                    if not img_bytes:
-                        st.error("Error processing image. Please check the file format.")
-                        st.stop()
-
-                # Prepare list for DB: [(id, qty), ...]
-                db_items = [(x['id'], x['qty']) for x in st.session_state.new_recipe]
-                
-                if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
-                    st.success(f"Successfully created '{prod_name}'!")
-                    st.session_state.new_recipe = [] # Reset
-                    st.rerun()
+                # Check if product exists
+                if db_utils.check_product_exists(prod_name):
+                    st.session_state.confirm_overwrite = True
                 else:
-                    st.error("Failed to save product. Check database connection.")
+                    # Create New
+                    img_bytes = None
+                    if uploaded_file:
+                        img_bytes = utils.process_image(uploaded_file)
+
+                    # Prepare list for DB: [(id, qty), ...]
+                    db_items = [(x['id'], x['qty']) for x in st.session_state.new_recipe]
+                    
+                    if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
+                        st.success(f"Successfully created '{prod_name}'!")
+                        st.session_state.new_recipe = [] # Reset
+                        st.session_state.should_clear_input = True # Trigger clear on next run
+                        st.rerun()
+                    else:
+                        st.error("Failed to save product. Check database connection.")
             else:
                 st.warning("Please provide a name and at least one ingredient.")
+
+        # Confirmation Dialog for Overwrite
+        if st.session_state.get('confirm_overwrite'):
+            st.warning(f"Product '{prod_name}' already exists. Overwrite?")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Yes, Overwrite"):
+                    img_bytes = None
+                    if uploaded_file:
+                        img_bytes = utils.process_image(uploaded_file)
+                    
+                    # Prepare DF for update_product_recipe
+                    recipe_data = [{'Ingredient': x['name'], 'Qty': x['qty']} for x in st.session_state.new_recipe]
+                    ingredients_df = pd.DataFrame(recipe_data)
+                    
+                    if db_utils.update_product_recipe(prod_name, ingredients_df, img_bytes, final_price):
+                        st.success(f"Updated '{prod_name}'!")
+                        st.session_state.new_recipe = []
+                        st.session_state.confirm_overwrite = False
+                        st.session_state.should_clear_input = True
+                        st.rerun()
+            with col_no:
+                if st.button("Cancel"):
+                    st.session_state.confirm_overwrite = False
+                    st.rerun()
 
     with col_builder:
         st.subheader("2. Build Recipe")

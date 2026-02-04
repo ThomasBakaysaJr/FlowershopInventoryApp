@@ -14,6 +14,9 @@ def process_image(
     if not image_input:
         return None
     try:
+        if isinstance(image_input, bytes):
+            image_input = io.BytesIO(image_input)
+
         with Image.open(image_input) as image:
             # Convert to RGB if RGBA (png) or Palette to ensure JPEG compatibility
             if image.mode in ("RGBA", "P"):

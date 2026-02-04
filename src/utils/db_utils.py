@@ -95,6 +95,76 @@ def log_production(p_id, week_start_str=None):
     finally:
         conn.close()
 
+def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_price=None):
+    """Updates a product's image, recipe ingredients, and optionally price."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Get Product ID
+        cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
+        res = cursor.fetchone()
+        if not res:
+            return False
+        p_id = res[0]
+
+        # Update Image if provided
+        if image_bytes:
+            cursor.execute("UPDATE products SET image_data = ? WHERE product_id = ?", (image_bytes, p_id))
+            
+        # Update Price if provided
+        if new_price is not None:
+            cursor.execute("UPDATE products SET selling_price = ? WHERE product_id = ?", (new_price, p_id))
+
+        # Update Recipe: Clear old -> Insert new
+        cursor.execute("DELETE FROM recipes WHERE product_id = ?", (p_id,))
+
+        for _, row in ingredients_df.iterrows():
+            ing_name = row['Ingredient']
+            qty = row['Qty']
+            
+            # Find item_id (Case-insensitive lookup)
+            cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
+            item_res = cursor.fetchone()
+            
+            if item_res:
+                item_id = item_res[0]
+                cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
+                               (p_id, item_id, qty))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def delete_product(product_name):
+    """Deletes a product and its associated recipe."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
+        res = cursor.fetchone()
+        if not res:
+            return False
+        p_id = res[0]
+
+        # Delete from dependent tables
+        cursor.execute("DELETE FROM recipes WHERE product_id = ?", (p_id,))
+        cursor.execute("DELETE FROM production_goals WHERE product_id = ?", (p_id,))
+        cursor.execute("DELETE FROM products WHERE product_id = ?", (p_id,))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 def undo_production(p_id, week_start_str=None):
     """Decrements production count and adds back inventory (BOM)."""
     conn = get_connection()
@@ -146,7 +216,7 @@ def get_all_recipes():
     """Fetches all active product recipes with ingredient details."""
     conn = get_connection()
     query = """
-    SELECT p.display_name as Product, p.selling_price as Price, p.image_data, i.name as Ingredient, r.qty_needed as Qty
+    SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, i.name as Ingredient, r.qty_needed as Qty
     FROM products p
     JOIN recipes r ON p.product_id = r.product_id
     JOIN inventory i ON r.item_id = i.item_id
@@ -225,3 +295,21 @@ def create_new_product(name, selling_price, image_bytes, recipe_items):
         return False
     finally:
         conn.close()
+
+def check_product_exists(product_name):
+    """Checks if a product name already exists (case-insensitive)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE", (product_name,))
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
+
+def get_product_image(product_name):
+    """Fetches the thumbnail for a specific product."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT image_data FROM products WHERE display_name = ? COLLATE NOCASE", (product_name,))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] if res else None

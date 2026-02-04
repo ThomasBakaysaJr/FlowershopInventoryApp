@@ -63,4 +63,4 @@ def render_designer_dashboard():
         st.info("No production goals set for the coming weeks.")
 
     st.divider()
-    recipe_display.render_recipe_display()
+    recipe_display.render_recipe_display(allow_edit=False)

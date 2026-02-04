@@ -37,7 +37,7 @@ else:
         with admin_sub_tabs[1]:
             design_tabs = st.tabs(["📖 Current Recipes", "✏️ Design Studio"])
             with design_tabs[0]:
-                recipe_display.render_recipe_display()
+                recipe_display.render_recipe_display(allow_edit=True)
             with design_tabs[1]:
                 admin_design.render_design_tab(raw_inventory_df)
 
