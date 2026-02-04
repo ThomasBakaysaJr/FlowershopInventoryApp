@@ -87,6 +87,8 @@ def seed_database():
         (product_ids["Dozen Red Roses"], '2026-02-13', 50, 0),
         (product_ids["Dozen Red Roses"], '2026-02-14', 150, 0),
         (product_ids["Lily Elegance"], '2026-02-14', 20, 0),
+        (product_ids["Budget Bud Vase"], '2026-02-14', 25, 10),
+        (product_ids["Spring Mix"], '2026-02-14', 10, 2),
         # Week of Feb 16 (Post-Valentine's)
         (product_ids["Spring Mix"], '2026-02-18', 15, 0),
         (product_ids["Budget Bud Vase"], '2026-02-20', 30, 0)
