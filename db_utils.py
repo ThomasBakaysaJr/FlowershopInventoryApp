@@ -105,3 +105,49 @@ def get_all_recipes():
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
+
+def process_clipboard_update(text_data):
+    """Parses lines like 'Rose 50' or 'Vase, 10' to update inventory counts."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    updated_items = []
+    errors = []
+    
+    for line in text_data.strip().split('\n'):
+        line = line.strip()
+        if not line: continue
+        
+        name = None
+        qty = None
+
+        # Strategy 1: Comma Separated (New Format: Name, Sub-Cat, Qty)
+        if ',' in line:
+            parts = [p.strip() for p in line.split(',')]
+            # We expect at least Name and Qty (e.g. "Name, Qty" or "Name, Sub, Qty")
+            if len(parts) >= 2 and parts[-1].isdigit():
+                name = parts[0]
+                qty = int(parts[-1])
+        
+        # Strategy 2: Whitespace Separated (Old Format: Name Qty)
+        if name is None:
+            parts = line.rsplit(None, 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                name = parts[0].strip().rstrip(',')
+                qty = int(parts[1])
+
+        if name and qty is not None:
+            # Case-insensitive lookup to find the item
+            cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            
+            if row:
+                cursor.execute("UPDATE inventory SET count_on_hand = ? WHERE item_id = ?", (qty, row[0]))
+                updated_items.append(f"{name}")
+            else:
+                errors.append(f"Unknown: {name}")
+        else:
+            errors.append(f"Invalid format: {line}")
+            
+    conn.commit()
+    conn.close()
+    return updated_items, errors

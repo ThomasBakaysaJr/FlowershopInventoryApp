@@ -69,11 +69,51 @@ else:
             st.info("No products or recipes defined.")
 
     with tab_admin:
-        st.header("Current Stock Levels")
-        inventory_df = db_utils.get_inventory()
-        if not inventory_df.empty:
-            # Renaming columns for better UI display
-            inventory_df.columns = ["ID", "Item Name", "Category", "Sub-Category", "Stock", "Cost"]
-            st.dataframe(inventory_df, width='stretch', hide_index=True)
-        else:
-            st.info("Inventory is currently empty.")
+        # Fetch inventory once to use for both Display and Export tools
+        raw_inventory_df = db_utils.get_inventory()
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.header("Current Stock Levels")
+            if not raw_inventory_df.empty:
+                # Renaming columns for better UI display
+                display_df = raw_inventory_df.copy()
+                display_df.columns = ["ID", "Item Name", "Category", "Sub-Category", "Stock", "Cost"]
+                st.dataframe(display_df, width='stretch', hide_index=True)
+            else:
+                st.info("Inventory is currently empty.")
+        
+        with col2:
+            st.header("Tools")
+            
+            with st.expander("📤 Export Stem List", expanded=False):
+                st.write("Download a text file to copy-paste into your notes app.")
+                if not raw_inventory_df.empty:
+                    # Filter for Stems only as requested
+                    stems_df = raw_inventory_df[raw_inventory_df['category'] == 'Stem']
+                    # Format: Name, Sub-Category, Count
+                    csv_text = "\n".join([f"{row['name']}, {row['sub_category'] or ''}, {row['count_on_hand']}" for _, row in stems_df.iterrows()])
+                    timestamp = time.strftime("%b%d_%H%M")
+                    st.download_button(
+                        label="📋 Download Stem List (.txt)",
+                        data=csv_text,
+                        file_name=f"stem_inventory_{timestamp}.txt",
+                        mime="text/plain"
+                    )
+                else:
+                    st.info("No stems found.")
+
+            with st.expander("📋 Clipboard Protocol", expanded=True):
+                st.write("Paste inventory lists from your phone notes here to update stock.")
+                clipboard_text = st.text_area("Paste text here...", height=150, help="Format: Name, Sub-Cat, Qty")
+                
+                if st.button("Update Inventory"):
+                    if clipboard_text:
+                        updated, errors = db_utils.process_clipboard_update(clipboard_text)
+                        if updated:
+                            st.success(f"Updated {len(updated)} items: {', '.join(updated)}")
+                            time.sleep(0.25)
+                            st.rerun()
+                        if errors:
+                            st.error(f"Issues found: {'; '.join(errors)}")
