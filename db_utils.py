@@ -46,8 +46,8 @@ def get_inventory():
 def log_production(product_name):
     """Increments production count and deducts inventory (BOM)."""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         # 1. Get product_id
         cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
         res = cursor.fetchone()
@@ -73,6 +73,10 @@ def log_production(product_name):
             
             conn.commit()
             return True
+        return False
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
         return False
     finally:
         conn.close()
