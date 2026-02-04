@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import db_utils
-import utils
+from src.utils import db_utils, utils
 
 def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")

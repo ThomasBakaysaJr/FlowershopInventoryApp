@@ -9,8 +9,7 @@ import pandas as pd
 # Add parent directory to path to import local modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import db_utils
-import utils
+from src.utils import db_utils, utils
 import seed_db
 
 TEST_DB = 'test_images.db'

@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
-import db_utils
+from src.utils import db_utils
 import time
-import admin_design
+import src.components.admin_design as admin_design
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 

@@ -7,7 +7,7 @@ import subprocess
 # Add parent directory to path to import db_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import db_utils
+from src.utils import db_utils
 
 TEST_DB = 'test_inventory.db'
 

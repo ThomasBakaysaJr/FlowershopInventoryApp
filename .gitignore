@@ -1,6 +1,20 @@
+# Environments
 .venv/
+venv/
+
+# IDEs
 .vscode/
+
+# Databases
 inventory.db
+test_*.db
+
+# Assets
 images/test/
 
+# Python & Tools
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db

@@ -1,6 +1,6 @@
 import sqlite3
 import os
-import utils
+from src.utils import utils
 
 def load_image(product_name):
     """Helper to load and compress test images from disk for seeding."""
