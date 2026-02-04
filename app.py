@@ -20,9 +20,14 @@ else:
         goals_df = db_utils.get_weekly_production_goals()
         
         if not goals_df.empty:
-            for week in goals_df['Week Starting'].unique():
-                st.subheader(f"📅 Week of {week}")
-                week_data = goals_df[goals_df['Week Starting'] == week].reset_index(drop=True)
+            # Get unique weeks with both ISO and Display format, sorted by ISO
+            weeks = goals_df[['week_start_iso', 'Week Starting']].drop_duplicates().sort_values('week_start_iso')
+            
+            for _, week_row in weeks.iterrows():
+                week_iso = week_row['week_start_iso']
+                week_display = week_row['Week Starting']
+                st.subheader(f"📅 Week of {week_display}")
+                week_data = goals_df[goals_df['week_start_iso'] == week_iso].reset_index(drop=True)
                 
                 # Create a grid: 2 columns on desktop, stacks on mobile
                 for i in range(0, len(week_data), 2):
@@ -39,8 +44,8 @@ else:
                                     
                                     with col_btn:
                                         btn_label = "✅" if needed <= 0 else "ADD"
-                                        if st.button(btn_label, key=f"btn_{row['product_id']}_{week}", disabled=(needed <= 0), use_container_width=True):
-                                            if db_utils.log_production(int(row['product_id']), week):
+                                        if st.button(btn_label, key=f"btn_{row['product_id']}_{week_iso}", disabled=(needed <= 0), use_container_width=True):
+                                            if db_utils.log_production(int(row['product_id']), week_iso):
                                                 st.toast(f"Logged 1 {row['Product']}!", icon="🌸")                                                
                                                 time.sleep(0.25)
                                                 st.rerun()

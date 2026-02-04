@@ -26,9 +26,11 @@ def get_weekly_production_goals():
 
     # Convert to datetime and group by week (starting Monday)
     df['Due'] = pd.to_datetime(df['Due'])
-    df['Week Starting'] = df['Due'].dt.to_period('W').apply(lambda r: r.start_time.strftime('%b %d, %Y'))
+    df['week_start_dt'] = df['Due'].dt.to_period('W').apply(lambda r: r.start_time)
+    df['Week Starting'] = df['week_start_dt'].dt.strftime('%b %d, %Y')
+    df['week_start_iso'] = df['week_start_dt'].dt.strftime('%Y-%m-%d')
     
-    summary = df.groupby(['Week Starting', 'product_id', 'Product']).agg({
+    summary = df.groupby(['week_start_iso', 'Week Starting', 'product_id', 'Product']).agg({
         'qty_ordered': 'sum',
         'qty_made': 'sum',
         'image_data': 'first'

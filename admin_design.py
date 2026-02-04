@@ -87,14 +87,18 @@ def render_design_tab(inventory_df):
             else:
                 filtered_items = inventory_df
             
-            # Create selection map: "Name ($Cost)" -> ID
-            item_map = {f"{row['name']} (${row['unit_cost']:.2f})": row for _, row in filtered_items.iterrows()}
+            # Create lookup: ID -> Row Data
+            id_to_item = {row['item_id']: row for _, row in filtered_items.iterrows()}
             
-            selected_label = st.selectbox("Select Ingredient", options=item_map.keys())
+            def format_item_label(item_id):
+                item = id_to_item[item_id]
+                return f"{item['name']} (${item['unit_cost']:.2f})"
+            
+            selected_item_id = st.selectbox("Select Ingredient", options=id_to_item.keys(), format_func=format_item_label)
             qty = st.number_input("Quantity", min_value=1, value=1)
             
             if st.button("Add to Recipe"):
-                item_data = item_map[selected_label]
+                item_data = id_to_item[selected_item_id]
                 
                 # Check if item already exists to update quantity instead of duplicating
                 existing_item = next((x for x in st.session_state.new_recipe if x['id'] == item_data['item_id']), None)
@@ -129,25 +133,25 @@ def render_design_tab(inventory_df):
             col_rem_sel, col_rem_qty, col_rem_btn = st.columns([2, 1, 1], vertical_alignment="bottom")
             
             recipe_items = st.session_state.new_recipe
-            item_names = [i['name'] for i in recipe_items]
+            id_map = {i['id']: i['name'] for i in recipe_items}
 
             with col_rem_sel:
-                item_to_remove = st.selectbox("Item", options=item_names, label_visibility="collapsed", key="rem_item_select")
+                item_to_remove_id = st.selectbox("Item", options=id_map.keys(), format_func=lambda x: id_map[x], label_visibility="collapsed", key="rem_item_select")
             with col_rem_qty:
                 qty_to_remove = st.number_input("Qty", min_value=1, value=1, step=1, key="rem_qty_input")
             with col_rem_btn:
                 if st.button("Remove", use_container_width=True):
                     # Find the item in the list
-                    target = next((i for i in st.session_state.new_recipe if i['name'] == item_to_remove), None)
+                    target = next((i for i in st.session_state.new_recipe if i['id'] == item_to_remove_id), None)
                     if target:
                         if qty_to_remove >= target['qty']:
                             # Remove completely if count goes to 0 or negative
-                            st.session_state.new_recipe = [i for i in st.session_state.new_recipe if i['name'] != item_to_remove]
-                            st.toast(f"Removed {item_to_remove}", icon="🗑️")
+                            st.session_state.new_recipe = [i for i in st.session_state.new_recipe if i['id'] != item_to_remove_id]
+                            st.toast(f"Removed {target['name']}", icon="🗑️")
                         else:
                             # Just decrease count
                             target['qty'] -= qty_to_remove
-                            st.toast(f"Removed {qty_to_remove} {item_to_remove}", icon="➖")
+                            st.toast(f"Removed {qty_to_remove} {target['name']}", icon="➖")
                     st.rerun()
             
             if st.button("Clear Entire Recipe", type="secondary", use_container_width=True):
