@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import db_utils
+import time
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
@@ -38,8 +39,9 @@ else:
                                     with col_btn:
                                         btn_label = "✅" if needed <= 0 else "ADD"
                                         if st.button(btn_label, key=f"btn_{row['product_id']}_{week}", disabled=(needed <= 0), use_container_width=True):
-                                            if db_utils.log_production(row['product_id']):
-                                                st.toast(f"Logged 1 {row['Product']}!", icon="🌸")
+                                            if db_utils.log_production(int(row['product_id']), week):
+                                                st.toast(f"Logged 1 {row['Product']}!", icon="🌸")                                                
+                                                time.sleep(0.25)
                                                 st.rerun()
                                     
                                     with col_name:

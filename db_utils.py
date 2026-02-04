@@ -43,18 +43,29 @@ def get_inventory():
     conn.close()
     return df
 
-def log_production(p_id):
+def log_production(p_id, week_start_str=None):
     """Increments production count and deducts inventory (BOM)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
         # 2. Find earliest incomplete goal for this product
-        cursor.execute("""
+        query = """
             SELECT goal_id FROM production_goals 
             WHERE product_id = ? AND qty_made < qty_ordered 
-            ORDER BY due_date ASC LIMIT 1
-        """, (p_id,))
+        """
+        params = [p_id]
+
+        if week_start_str:
+            # Filter by the specific week selected in the UI
+            start_date = pd.to_datetime(week_start_str).date()
+            end_date = start_date + pd.Timedelta(days=6)
+            query += " AND due_date BETWEEN ? AND ?"
+            params.extend([str(start_date), str(end_date)])
+
+        query += " ORDER BY due_date ASC LIMIT 1"
+        
+        cursor.execute(query, params)
         goal_res = cursor.fetchone()
         
         if goal_res:
