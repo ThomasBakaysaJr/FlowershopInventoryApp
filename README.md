@@ -72,17 +72,26 @@ CREATE TABLE production_goals (
 
 ### Prerequisites
 * Python 3.10+
-
-### Installation
 1. Clone the repository:
    ```bash
    git clone https://github.com/your-username/FlowershopInventoryApp.git
    ```
-2. Install required packages:
+
+2. Create and activate a virtual environment:
    ```bash
-   pip install streamlit pillow
+   python -m venv venv
+   # On Windows (Command Prompt):
+   .\venv\Scripts\activate.bat
+   # On Windows (PowerShell):
+   .\venv\Scripts\Activate.ps1
+   # On macOS/Linux:
+   source venv/bin/activate
    ```
-3. Start the application:
+3. Install required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Start the application:
    ```bash
    streamlit run app.py
    ```

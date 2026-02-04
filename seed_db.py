@@ -4,6 +4,12 @@ def seed_database():
     connection = sqlite3.connect('inventory.db')
     cursor = connection.cursor()
 
+    # 0. Clear existing data (Optional: allows for clean re-seeding)
+    cursor.execute("DELETE FROM production_goals")
+    cursor.execute("DELETE FROM recipes")
+    cursor.execute("DELETE FROM products")
+    cursor.execute("DELETE FROM inventory")
+
     # 1. Insert Inventory Items
     # Format: (name, category, sub_category, count_on_hand, unit_cost)
     inventory_items = [
@@ -40,10 +46,22 @@ def seed_database():
         VALUES (?, ?, ?)
     ''', recipe_items)
 
+    # 4. Insert Production Goals for Valentine's Period
+    production_goals = [
+        (product_id, '2026-02-13', 5, 0),
+        (product_id, '2026-02-14', 20, 0),
+        (product_id, '2026-02-15', 10, 0)
+    ]
+
+    cursor.executemany('''
+        INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made)
+        VALUES (?, ?, ?, ?)
+    ''', production_goals)
+
     connection.commit()
     connection.close()
     print("Database seeded successfully!")
-    print(f"Added {len(inventory_items)} inventory items and 1 product recipe.")
+    print(f"Added {len(inventory_items)} items, 1 product, and 3 production goals.")
 
 if __name__ == "__main__":
     seed_database()
