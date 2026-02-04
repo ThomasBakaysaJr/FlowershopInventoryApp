@@ -4,11 +4,21 @@ import utils
 
 def load_image(product_name):
     """Helper to load and compress test images from disk for seeding."""
-    # Convert "Dozen Red Roses" -> "dozen_red_roses.jpg"
-    filename = product_name.lower().replace(" ", "_") + ".jpg"
-    path = os.path.join("images", "test", filename)
-    if os.path.exists(path):
-        return utils.process_image(path)
+    # Try variations: "spring_mix", "spring mix", and original "Spring Mix"
+    variations = [
+        product_name.lower().replace(" ", "_"),
+        product_name.lower(),
+        product_name
+    ]
+    
+    for var in variations:
+        for ext in [".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"]:
+            path = os.path.join("images", "test", var + ext)
+            if os.path.exists(path):
+                print(f"✅ Found image for '{product_name}': {path}")
+                return utils.process_image(path)
+                
+    print(f"❌ No image found for '{product_name}' (tried variations in images/test/)")
     return None
 
 def seed_database():
