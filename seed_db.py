@@ -13,9 +13,19 @@ def seed_database():
     # 1. Insert Inventory Items
     # Format: (name, category, sub_category, count_on_hand, unit_cost)
     inventory_items = [
+        # Hard Goods
         ("Judy Vase", "Hard Good", "Vase", 50, 2.50),
+        ("Blue Ceramic Pot", "Hard Good", "Vase", 20, 4.75),
+        ("Clear Bud Vase", "Hard Good", "Vase", 100, 1.10),
+        # Stems
         ("Red Rose 40cm", "Stem", "Rose", 200, 0.85),
-        ("Leather Leaf", "Greenery", None, 100, 0.50)
+        ("White Lily", "Stem", "Lily", 40, 2.25),
+        ("Yellow Tulip", "Stem", "Tulip", 150, 0.65),
+        ("Pink Carnation", "Stem", "Carnation", 300, 0.45),
+        # Greenery
+        ("Leather Leaf", "Greenery", None, 100, 0.50),
+        ("Silver Dollar Eucalyptus", "Greenery", "Eucalyptus", 80, 1.20),
+        ("Salal", "Greenery", None, 60, 0.75)
     ]
     
     item_ids = {}
@@ -26,19 +36,41 @@ def seed_database():
         ''', (name, cat, sub_cat, count, cost))
         item_ids[name] = cursor.lastrowid
 
-    # 2. Insert Product (The "Dozen Red Roses" arrangement)
-    cursor.execute('''
-        INSERT INTO products (display_name, selling_price, active)
-        VALUES (?, ?, ?)
-    ''', ("Dozen Red Roses", 65.00, 1))
-    product_id = cursor.lastrowid
+    # 2. Insert Products
+    products_to_create = [
+        ("Dozen Red Roses", 65.00),
+        ("Spring Mix", 45.00),
+        ("Lily Elegance", 85.00),
+        ("Budget Bud Vase", 15.00)
+    ]
+    
+    product_ids = {}
+    for name, price in products_to_create:
+        cursor.execute('''
+            INSERT INTO products (display_name, selling_price, active)
+            VALUES (?, ?, ?)
+        ''', (name, price, 1))
+        product_ids[name] = cursor.lastrowid
 
-    # 3. Insert Recipe (Linking the items to the product)
-    # We need 12 roses, 1 leather leaf (bulk), and 1 vase
+    # 3. Insert Recipes
     recipe_items = [
-        (product_id, item_ids["Red Rose 40cm"], 12),
-        (product_id, item_ids["Leather Leaf"], 1),
-        (product_id, item_ids["Judy Vase"], 1)
+        # Dozen Red Roses
+        (product_ids["Dozen Red Roses"], item_ids["Red Rose 40cm"], 12),
+        (product_ids["Dozen Red Roses"], item_ids["Leather Leaf"], 2),
+        (product_ids["Dozen Red Roses"], item_ids["Judy Vase"], 1),
+        # Spring Mix
+        (product_ids["Spring Mix"], item_ids["Yellow Tulip"], 10),
+        (product_ids["Spring Mix"], item_ids["Pink Carnation"], 5),
+        (product_ids["Spring Mix"], item_ids["Salal"], 1),
+        (product_ids["Spring Mix"], item_ids["Blue Ceramic Pot"], 1),
+        # Lily Elegance
+        (product_ids["Lily Elegance"], item_ids["White Lily"], 5),
+        (product_ids["Lily Elegance"], item_ids["Silver Dollar Eucalyptus"], 3),
+        (product_ids["Lily Elegance"], item_ids["Judy Vase"], 1),
+        # Budget Bud Vase
+        (product_ids["Budget Bud Vase"], item_ids["Pink Carnation"], 1),
+        (product_ids["Budget Bud Vase"], item_ids["Leather Leaf"], 1),
+        (product_ids["Budget Bud Vase"], item_ids["Clear Bud Vase"], 1)
     ]
     
     cursor.executemany('''
@@ -46,11 +78,18 @@ def seed_database():
         VALUES (?, ?, ?)
     ''', recipe_items)
 
-    # 4. Insert Production Goals for Valentine's Period
+    # 4. Insert Production Goals (Spread across different weeks)
     production_goals = [
-        (product_id, '2026-02-13', 5, 0),
-        (product_id, '2026-02-14', 20, 0),
-        (product_id, '2026-02-15', 10, 0)
+        # Week of Feb 2 (Current Week)
+        (product_ids["Budget Bud Vase"], '2026-02-05', 25, 10),
+        (product_ids["Spring Mix"], '2026-02-06', 10, 2),
+        # Week of Feb 9 (Valentine's Prep)
+        (product_ids["Dozen Red Roses"], '2026-02-13', 50, 0),
+        (product_ids["Dozen Red Roses"], '2026-02-14', 150, 0),
+        (product_ids["Lily Elegance"], '2026-02-14', 20, 0),
+        # Week of Feb 16 (Post-Valentine's)
+        (product_ids["Spring Mix"], '2026-02-18', 15, 0),
+        (product_ids["Budget Bud Vase"], '2026-02-20', 30, 0)
     ]
 
     cursor.executemany('''
@@ -61,7 +100,7 @@ def seed_database():
     connection.commit()
     connection.close()
     print("Database seeded successfully!")
-    print(f"Added {len(inventory_items)} items, 1 product, and 3 production goals.")
+    print(f"Added {len(inventory_items)} items, {len(products_to_create)} products, and {len(production_goals)} goals.")
 
 if __name__ == "__main__":
     seed_database()
