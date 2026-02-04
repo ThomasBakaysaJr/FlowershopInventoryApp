@@ -151,3 +151,27 @@ def process_clipboard_update(text_data):
     conn.commit()
     conn.close()
     return updated_items, errors
+
+def create_new_product(name, selling_price, image_bytes, recipe_items):
+    """Creates a new product and its associated recipe in a single transaction."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # 1. Insert Product
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active) VALUES (?, ?, ?, 1)",
+                       (name, selling_price, image_bytes))
+        product_id = cursor.lastrowid
+        
+        # 2. Insert Recipe Items
+        for item_id, qty in recipe_items:
+            cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)",
+                           (product_id, item_id, qty))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()

@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import db_utils
 import time
+import admin_design
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
@@ -70,7 +71,7 @@ else:
 
     with tab_admin:
         raw_inventory_df = db_utils.get_inventory()
-        admin_sub_tabs = st.tabs(["📊 Stock Levels", "🛠️ Admin Tools"])
+        admin_sub_tabs = st.tabs(["📊 Stock Levels", "🎨 Design Studio", "🛠️ Admin Tools"])
         
         with admin_sub_tabs[0]:
             st.header("Current Stock Levels")
@@ -82,6 +83,9 @@ else:
                 st.info("Inventory is currently empty.")
         
         with admin_sub_tabs[1]:
+            admin_design.render_design_tab(raw_inventory_df)
+
+        with admin_sub_tabs[2]:
             st.header("Inventory Management Tools")
             
             if not raw_inventory_df.empty:
