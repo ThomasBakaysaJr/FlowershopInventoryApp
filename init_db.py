@@ -52,6 +52,18 @@ def initialize_database():
         )
     ''')
 
+    # Create Production Logs Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS production_logs (
+            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER,
+            product_id INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
+            FOREIGN KEY(product_id) REFERENCES products(product_id)
+        )
+    ''')
+
     connection.commit()
     connection.close()
     print("Database initialized successfully as 'inventory.db'.")

@@ -40,6 +40,10 @@ def test_log_production_logic(setup_db):
     new_stock = cursor.fetchone()[0]
     assert new_stock == initial_stock - 12
     
+    # Check Log Entry Created
+    cursor.execute("SELECT COUNT(*) FROM production_logs WHERE product_id = ?", (p_id,))
+    assert cursor.fetchone()[0] == 1
+    
     conn.close()
 
 def test_undo_production_logic(setup_db):
@@ -68,6 +72,10 @@ def test_undo_production_logic(setup_db):
     # Check Inventory Return (Should be back to 100)
     cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
     assert cursor.fetchone()[0] == 100
+    
+    # Check Log Entry Removed
+    cursor.execute("SELECT COUNT(*) FROM production_logs WHERE product_id = ?", (p_id,))
+    assert cursor.fetchone()[0] == 0
     
     conn.close()
 

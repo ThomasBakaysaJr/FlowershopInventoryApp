@@ -56,6 +56,14 @@ def setup_db():
             qty_made INTEGER DEFAULT 0,
             FOREIGN KEY(product_id) REFERENCES products(product_id)
         );
+        CREATE TABLE production_logs (
+            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER,
+            product_id INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
+            FOREIGN KEY(product_id) REFERENCES products(product_id)
+        );
     ''')
     
     # Seed initial data
