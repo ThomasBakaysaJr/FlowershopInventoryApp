@@ -85,6 +85,9 @@ def log_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
             query += " AND due_date BETWEEN ? AND ?"
             params.extend([str(start_date), str(end_date)])
         
+        # Ensure deterministic behavior: Earliest due date first, then by creation order (ID)
+        query += " ORDER BY due_date ASC, goal_id ASC"
+        
         cursor.execute(query, params)
         goal_res = cursor.fetchone()
         
