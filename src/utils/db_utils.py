@@ -51,9 +51,15 @@ def get_inventory():
     try:
         if not os.path.exists(DB_PATH):
             return pd.DataFrame()
-        with get_connection() as conn:
+        conn = get_connection()
+        try:
             df = pd.read_sql_query("SELECT * FROM inventory", conn)
             return df
+        except Exception as e:
+            logger.error(f"get_inventory: Error executing query: {e}")
+            return pd.DataFrame()  
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
