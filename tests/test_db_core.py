@@ -128,3 +128,41 @@ def test_clipboard_update_whitespace(setup_db):
     cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
     assert cursor.fetchone()[0] == 75
     conn.close()
+
+def test_log_production_deterministic_order(setup_db):
+    """Tests that production always logs to the goal with the EARLIEST due date."""
+    db_path = setup_db
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        
+        # Get Product ID
+        cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special'")
+        p_id = cursor.fetchone()[0]
+        
+        # CLEANUP: Remove the default goal seeded by conftest (dated 2023) 
+        # so it doesn't get picked up as the "earliest" goal.
+        cursor.execute("DELETE FROM production_goals WHERE product_id = ?", (p_id,))
+        
+        # Create two goals for the same product
+        # Goal 1: Due later (Feb 20)
+        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_made, due_date) VALUES (?, 10, 0, '2026-02-20')", (p_id,))
+        g_id_late = cursor.lastrowid
+        
+        # Goal 2: Due earlier (Feb 10)
+        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_made, due_date) VALUES (?, 10, 0, '2026-02-10')", (p_id,))
+        g_id_early = cursor.lastrowid
+        conn.commit()
+        
+        # --- ACTION: Log Production ---
+        # This should automatically pick the goal due Feb 10, not Feb 20
+        db_utils.log_production(p_id)
+        
+        # --- VERIFY ---
+        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_early,))
+        assert cursor.fetchone()[0] == 1
+        
+        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_late,))
+        assert cursor.fetchone()[0] == 0
+    finally:
+        conn.close()
