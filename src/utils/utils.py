@@ -33,5 +33,5 @@ def process_image(
             image.save(img_byte_arr, format='JPEG', quality=quality)
             return img_byte_arr.getvalue()
     except Exception as e:
-        logger.error(f"Error processing image: {e}")
+        logger.error(f"process_image: Error processing image: {e}")
         return None

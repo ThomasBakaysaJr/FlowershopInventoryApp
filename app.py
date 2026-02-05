@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import logging
 from src.utils import db_utils
 import time
 import src.components.admin_design as admin_design
@@ -9,6 +10,17 @@ import src.components.admin_tools as admin_tools
 import src.components.recipe_display as recipe_display
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
+
+# --- Logging Configuration ---
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+logging.basicConfig(
+    filename='logs/app.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 st.title("University Flowers Production Dashboard")
 
