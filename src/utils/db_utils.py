@@ -14,7 +14,7 @@ def get_weekly_production_goals():
     
     conn = get_connection()
     query = """
-    SELECT p.product_id, p.display_name as Product, p.image_data, pg.due_date as Due, pg.qty_ordered, pg.qty_made
+    SELECT p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date as Due, pg.qty_ordered, pg.qty_made
     FROM production_goals pg
     JOIN products p ON pg.product_id = p.product_id
     """
@@ -30,7 +30,7 @@ def get_weekly_production_goals():
     df['Week Starting'] = df['week_start_dt'].dt.strftime('%b %d, %Y')
     df['week_start_iso'] = df['week_start_dt'].dt.strftime('%Y-%m-%d')
     
-    summary = df.groupby(['week_start_iso', 'Week Starting', 'product_id', 'Product']).agg({
+    summary = df.groupby(['week_start_iso', 'Week Starting', 'product_id', 'Product', 'active']).agg({
         'qty_ordered': 'sum',
         'qty_made': 'sum',
         'image_data': 'first'
@@ -98,7 +98,7 @@ def log_production(p_id, week_start_str=None):
     finally:
         conn.close()
 
-def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_price=None):
+def update_product_recipe(product_name, recipe_items, image_bytes=None, new_price=None):
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -124,18 +124,9 @@ def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_pr
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
-        for _, row in ingredients_df.iterrows():
-            ing_name = row['Ingredient']
-            qty = row['Qty']
-            
-            # Find item_id (Case-insensitive lookup)
-            cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
-            item_res = cursor.fetchone()
-            
-            if item_res:
-                item_id = item_res[0]
-                cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
-                               (new_p_id, item_id, qty))
+        for item_id, qty in recipe_items:
+            cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
+                           (new_p_id, item_id, qty))
         
         conn.commit()
         return True
@@ -146,12 +137,12 @@ def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_pr
     finally:
         conn.close()
 
-def delete_product(product_name):
+def delete_product(product_id):
     """Soft deletes a product by marking it inactive."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE products SET active = 0 WHERE display_name = ? AND active = 1 COLLATE NOCASE", (product_name,))
+        cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (product_id,))
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -219,11 +210,11 @@ def get_all_recipes():
     """Fetches all active product recipes with ingredient details."""
     conn = get_connection()
     query = """
-    SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, i.name as Ingredient, r.qty_needed as Qty
+    SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, i.name as Ingredient, r.qty_needed as Qty
     FROM products p
-    JOIN recipes r ON p.product_id = r.product_id
-    JOIN inventory i ON r.item_id = i.item_id
-    WHERE p.active = 1
+    LEFT JOIN recipes r ON p.product_id = r.product_id
+    LEFT JOIN inventory i ON r.item_id = i.item_id
+    ORDER BY p.display_name ASC
     """
     df = pd.read_sql_query(query, conn)
     conn.close()

@@ -25,7 +25,7 @@ def test_delete_product_cascade(setup_db):
     p_id = cursor.fetchone()[0]
     conn.close()
 
-    assert db_utils.delete_product("Valentine Special") is True
+    assert db_utils.delete_product(p_id) is True
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -51,13 +51,6 @@ def test_delete_product_cascade(setup_db):
 def test_update_product_recipe(setup_db):
     """Tests updating price and ingredients."""
     db_path = setup_db
-    # New Recipe: 5 Lilies instead of 12 Roses
-    new_ingredients = pd.DataFrame([
-        {'Ingredient': 'White Lily', 'Qty': 5}
-    ])
-    
-    success = db_utils.update_product_recipe("Valentine Special", new_ingredients, new_price=60.00)
-    assert success is True
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -65,17 +58,38 @@ def test_update_product_recipe(setup_db):
     # Get 'White Lily' ID dynamically
     cursor.execute("SELECT item_id FROM inventory WHERE name = 'White Lily'")
     lily_id = cursor.fetchone()[0]
+    
+    # Create a dummy goal for the old product to verify migration
+    cursor.execute("INSERT INTO production_goals (product_id, qty_ordered) VALUES ((SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1), 10)")
+    
+    conn.close()
+
+    # New Recipe: 5 Lilies instead of 12 Roses
+    new_recipe_items = [(lily_id, 5)]
+    
+    success = db_utils.update_product_recipe("Valentine Special", new_recipe_items, new_price=60.00)
+    assert success is True
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
     # Verify Price Update
-    cursor.execute("SELECT selling_price FROM products WHERE display_name = 'Valentine Special' AND active = 1")
-    new_price = cursor.fetchone()[0]
+    cursor.execute("SELECT product_id, selling_price FROM products WHERE display_name = 'Valentine Special' AND active = 1")
+    row = cursor.fetchone()
+    new_p_id = row[0]
+    new_price = row[1]
     
     # Verify Recipe Update
-    cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = (SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1)")
+    cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (new_p_id,))
     rows = cursor.fetchall()
+    
+    # Verify Goal Migration
+    cursor.execute("SELECT count(*) FROM production_goals WHERE product_id = ?", (new_p_id,))
+    goal_count = cursor.fetchone()[0]
     
     conn.close()
 
     assert new_price == 60.00
     assert len(rows) == 1
     assert rows[0] == (lily_id, 5) # (item_id, qty)
+    assert goal_count == 0 # The goal should NOT move to the new ID

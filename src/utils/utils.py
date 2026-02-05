@@ -17,6 +17,10 @@ def process_image(
         if isinstance(image_input, bytes):
             image_input = io.BytesIO(image_input)
 
+        # Ensure we are at the start of the stream if it's a file-like object
+        if hasattr(image_input, 'seek'):
+            image_input.seek(0)
+
         with Image.open(image_input) as image:
             # Convert to RGB if RGBA (png) or Palette to ensure JPEG compatibility
             if image.mode in ("RGBA", "P"):

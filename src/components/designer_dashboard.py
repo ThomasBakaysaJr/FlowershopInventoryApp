@@ -44,7 +44,11 @@ def render_designer_dashboard():
                                             st.rerun()
                                 
                                 with col_name:
-                                    st.markdown(f"### **{row['Product']}**" if needed > 0 else f"~~{row['Product']}~~")
+                                    display_name = row['Product']
+                                    if row['active'] == 0:
+                                        display_name = f"{display_name} ⚠️ (Archived)"
+                                        
+                                    st.markdown(f"### **{display_name}**" if needed > 0 else f"~~{display_name}~~")
                                 
                                 with col_qty:
                                     st.markdown(f"### **{needed}** left" if needed > 0 else "Done")

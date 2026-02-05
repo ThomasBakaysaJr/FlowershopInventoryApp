@@ -124,12 +124,14 @@ def render_design_tab(inventory_df):
                     img_bytes = None
                     if uploaded_file:
                         img_bytes = utils.process_image(uploaded_file)
+                        if img_bytes is None:
+                            st.error("Error processing image. Please check the file format.")
+                            st.stop()
                     
-                    # Prepare DF for update_product_recipe
-                    recipe_data = [{'Ingredient': x['name'], 'Qty': x['qty']} for x in st.session_state.new_recipe]
-                    ingredients_df = pd.DataFrame(recipe_data)
+                    # Prepare list for DB: [(id, qty), ...]
+                    db_items = [(int(x['id']), int(x['qty'])) for x in st.session_state.new_recipe]
                     
-                    if db_utils.update_product_recipe(prod_name, ingredients_df, img_bytes, final_price):
+                    if db_utils.update_product_recipe(prod_name, db_items, img_bytes, final_price):
                         st.success(f"Updated '{prod_name}'!")
                         st.session_state.new_recipe = []
                         st.session_state.confirm_overwrite = False
