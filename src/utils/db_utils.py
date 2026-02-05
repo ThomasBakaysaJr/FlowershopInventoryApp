@@ -313,3 +313,18 @@ def get_product_image(product_name):
     res = cursor.fetchone()
     conn.close()
     return res[0] if res else None
+
+def update_inventory_cost(item_id, new_cost):
+    """Updates the unit cost for a specific inventory item."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE inventory SET unit_cost = ? WHERE item_id = ?", (new_cost, item_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
