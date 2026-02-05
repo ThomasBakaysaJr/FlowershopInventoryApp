@@ -16,7 +16,7 @@ def test_check_product_exists(setup_db):
     assert db_utils.check_product_exists("Non Existent") is False
 
 def test_delete_product_cascade(setup_db):
-    """Ensures deleting a product removes it from recipes and goals."""
+    """Ensures deleting a product marks it as inactive but keeps history."""
     db_path = setup_db
     # Get ID dynamically to avoid hardcoding '1'
     conn = sqlite3.connect(db_path)
@@ -30,23 +30,23 @@ def test_delete_product_cascade(setup_db):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Check Product is gone
-    cursor.execute("SELECT 1 FROM products WHERE display_name = 'Valentine Special'")
-    prod_exists = cursor.fetchone()
+    # Check Product is NOT gone, but active is 0
+    cursor.execute("SELECT active FROM products WHERE display_name = 'Valentine Special'")
+    active_status = cursor.fetchone()[0]
     
-    # Check Recipe is gone
+    # Check Recipe still exists (for history)
     cursor.execute("SELECT 1 FROM recipes WHERE product_id = ?", (p_id,))
     recipe_exists = cursor.fetchone()
     
-    # Check Goals are gone
+    # Check Goals still exist (for history)
     cursor.execute("SELECT 1 FROM production_goals WHERE product_id = ?", (p_id,))
     goal_exists = cursor.fetchone()
     
     conn.close()
     
-    assert prod_exists is None
-    assert recipe_exists is None
-    assert goal_exists is None
+    assert active_status == 0
+    assert recipe_exists is not None
+    assert goal_exists is not None
 
 def test_update_product_recipe(setup_db):
     """Tests updating price and ingredients."""
@@ -67,11 +67,11 @@ def test_update_product_recipe(setup_db):
     lily_id = cursor.fetchone()[0]
 
     # Verify Price Update
-    cursor.execute("SELECT selling_price FROM products WHERE display_name = 'Valentine Special'")
+    cursor.execute("SELECT selling_price FROM products WHERE display_name = 'Valentine Special' AND active = 1")
     new_price = cursor.fetchone()[0]
     
     # Verify Recipe Update
-    cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = (SELECT product_id FROM products WHERE display_name = 'Valentine Special')")
+    cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = (SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1)")
     rows = cursor.fetchall()
     
     conn.close()
