@@ -20,7 +20,7 @@ def get_weekly_production_goals() -> pd.DataFrame:
     try:
         conn = get_connection()
         query = """
-        SELECT p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         """
@@ -35,13 +35,7 @@ def get_weekly_production_goals() -> pd.DataFrame:
         df['Week Starting'] = df['week_start_dt'].dt.strftime('%b %d, %Y')
         df['week_start_iso'] = df['week_start_dt'].dt.strftime('%Y-%m-%d')
         
-        summary = df.groupby(['week_start_iso', 'Week Starting', 'product_id', 'Product', 'active']).agg({
-            'qty_ordered': 'sum',
-            'qty_made': 'sum',
-            'image_data': 'first'
-        }).reset_index()
-        
-        return summary
+        return df.sort_values(['week_start_iso', 'due_date', 'Product'])
     except Exception as e:
         logger.error(f"get_weekly_production_goals: Error fetching goals: {e}")
         return pd.DataFrame()
@@ -65,55 +59,41 @@ def get_inventory() -> pd.DataFrame:
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
 
-def log_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
+def log_production(goal_id: int) -> bool:
     """Increments production count and deducts inventory (BOM)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
-        # 2. Find earliest incomplete goal for this product
-        query = """
-            SELECT goal_id FROM production_goals 
-            WHERE product_id = ? AND qty_made < qty_ordered 
-        """
-        params = [p_id]
+        # 2. Get product_id and current status from the specific goal
+        cursor.execute("SELECT product_id, qty_made, qty_ordered FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        
+        if not res:
+            logger.error(f"log_production: Goal ID {goal_id} not found.")
+            return False
+        
+        p_id, qty_made, qty_ordered = res
+        logger.debug(f"log_production: goal_id={goal_id}, product_id={p_id}")
 
-        if week_start_str:
-            # Filter by the specific week selected in the UI
-            start_date = pd.to_datetime(week_start_str).date()
-            end_date = start_date + pd.Timedelta(days=6)
-            query += " AND due_date BETWEEN ? AND ?"
-            params.extend([str(start_date), str(end_date)])
+        # Update Goal
+        cursor.execute("UPDATE production_goals SET qty_made = qty_made + 1 WHERE goal_id = ?", (goal_id,))
         
-        # Ensure deterministic behavior: Earliest due date first, then by creation order (ID)
-        query += " ORDER BY due_date ASC, goal_id ASC"
+        # Insert Log Entry
+        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
         
-        cursor.execute(query, params)
-        goal_res = cursor.fetchone()
+        # 3. Deduct Inventory (Bill of Materials)
+        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
+        recipe_items = cursor.fetchall()
         
-        logger.debug(f"log_production: p_id={p_id}, week_start_str={week_start_str}, result={goal_res}")
-
-        if goal_res:
-            g_id = goal_res[0]
-            logger.info(f"log_production: Logging production for product_id {p_id} under goal_id {g_id}")
-            cursor.execute("UPDATE production_goals SET qty_made = qty_made + 1 WHERE goal_id = ?", (g_id,))
+        if not recipe_items:
+            logger.warning(f"log_production: No recipe found for product_id {p_id}")
             
-            # Insert Log Entry
-            cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (g_id, p_id))
-            
-            # 3. Deduct Inventory (Bill of Materials)
-            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
-            recipe_items = cursor.fetchall()
-            
-            if not recipe_items:
-                logger.warning(f"log_production: No recipe found for product_id {p_id}")
-                
-            for i_id, qty in recipe_items:
-                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
-            
-            conn.commit()
-            return True
-        return False
+        for i_id, qty in recipe_items:
+            cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+        
+        conn.commit()
+        return True
     except sqlite3.Error as e:
         logger.error(f"log_production: Database error: {e}")
         conn.rollback()
@@ -182,43 +162,32 @@ def delete_product(product_id: int) -> bool:
     finally:
         conn.close()
 
-def undo_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
+def undo_production(goal_id: int) -> bool:
     """Decrements production count and adds back inventory (BOM)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
-        # Find latest log entry for this product (linked to goal)
-        query = """
-            SELECT l.log_id, l.goal_id 
-            FROM production_logs l
-            JOIN production_goals pg ON l.goal_id = pg.goal_id
-            WHERE l.product_id = ?
-        """
-        params = [p_id]
-
-        if week_start_str:
-            # Filter by the specific week selected in the UI
-            start_date = pd.to_datetime(week_start_str).date()
-            end_date = start_date + pd.Timedelta(days=6)
-            query += " AND pg.due_date BETWEEN ? AND ?"
-            params.extend([str(start_date), str(end_date)])
-
-        # Order by Log ID DESC to undo the absolute most recent action
-        query += " ORDER BY l.log_id DESC LIMIT 1"
+        # Get product_id from the goal to know what to restore
+        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        if not res:
+            return False
+        p_id = res[0]
         
-        cursor.execute(query, params)
+        # Find latest log entry SPECIFICALLY for this goal
+        cursor.execute("SELECT log_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1", (goal_id,))
         log_res = cursor.fetchone()
         
         if log_res:
-            l_id, g_id = log_res
-            logger.info(f"undo_production: Reverting production for product_id {p_id}, log_id {l_id}")
+            l_id = log_res[0]
+            logger.info(f"undo_production: Reverting production for goal_id {goal_id}, log_id {l_id}")
             
             # Delete the log entry
             cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
             
             # Decrement the goal
-            cursor.execute("UPDATE production_goals SET qty_made = qty_made - 1 WHERE goal_id = ?", (g_id,))
+            cursor.execute("UPDATE production_goals SET qty_made = qty_made - 1 WHERE goal_id = ?", (goal_id,))
             
             # Add back to Inventory (Bill of Materials)
             cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))

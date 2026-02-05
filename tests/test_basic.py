@@ -67,6 +67,9 @@ def test_log_production_updates_correctly(setup_db):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
+    # Cleanup: Remove default goal from conftest to ensure we target the new one
+    cursor.execute("DELETE FROM production_goals WHERE product_id = 1")
+    
     # Insert a specific goal for the date we are testing (Feb 4, 2026)
     # Product 1 is 'Valentine Special' from conftest
     cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made) VALUES (1, '2026-02-04', 10, 0)")
@@ -75,7 +78,7 @@ def test_log_production_updates_correctly(setup_db):
     conn.close()
 
     # Week starting Feb 2nd contains Feb 4th
-    success = db_utils.log_production(1, "Feb 02, 2026")
+    success = db_utils.log_production(goal_id)
     assert success is True
     
     conn = sqlite3.connect(db_path)

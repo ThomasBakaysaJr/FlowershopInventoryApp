@@ -19,6 +19,10 @@ def test_log_production_logic(setup_db):
         # Get Product ID
         cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special'")
         p_id = cursor.fetchone()[0]
+
+        # Get Goal ID (seeded in conftest)
+        cursor.execute("SELECT goal_id FROM production_goals WHERE product_id = ?", (p_id,))
+        goal_id = cursor.fetchone()[0]
         
         # Get Initial Inventory for Red Rose (Item ID 1)
         cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
@@ -27,7 +31,7 @@ def test_log_production_logic(setup_db):
         conn.close()
 
     # --- ACTION: Log Production ---
-    assert db_utils.log_production(p_id) is True
+    assert db_utils.log_production(goal_id) is True
 
     # --- VERIFY ---
     conn = sqlite3.connect(db_path)
@@ -57,14 +61,16 @@ def test_undo_production_logic(setup_db):
         cursor = conn.cursor()
         cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special'")
         p_id = cursor.fetchone()[0]
+        cursor.execute("SELECT goal_id FROM production_goals WHERE product_id = ?", (p_id,))
+        goal_id = cursor.fetchone()[0]
     finally:
         conn.close()
 
     # Setup: Log one first
-    db_utils.log_production(p_id)
+    db_utils.log_production(goal_id)
 
     # --- ACTION: Undo Production ---
-    assert db_utils.undo_production(p_id) is True
+    assert db_utils.undo_production(goal_id) is True
 
     # --- VERIFY ---
     conn = sqlite3.connect(db_path)
@@ -129,8 +135,8 @@ def test_clipboard_update_whitespace(setup_db):
     assert cursor.fetchone()[0] == 75
     conn.close()
 
-def test_log_production_deterministic_order(setup_db):
-    """Tests that production always logs to the goal with the EARLIEST due date."""
+def test_log_production_targets_specific_goal(setup_db):
+    """Tests that production logs to the EXACT goal ID provided, ignoring dates."""
     db_path = setup_db
     conn = sqlite3.connect(db_path)
     try:
@@ -155,14 +161,14 @@ def test_log_production_deterministic_order(setup_db):
         conn.commit()
         
         # --- ACTION: Log Production ---
-        # This should automatically pick the goal due Feb 10, not Feb 20
-        db_utils.log_production(p_id)
+        # We explicitly target the LATE goal (Feb 20), ignoring the early one (Feb 10)
+        db_utils.log_production(g_id_late)
         
         # --- VERIFY ---
-        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_early,))
+        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_late,))
         assert cursor.fetchone()[0] == 1
         
-        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_late,))
+        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_early,))
         assert cursor.fetchone()[0] == 0
     finally:
         conn.close()

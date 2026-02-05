@@ -60,9 +60,8 @@ def render_grid(week_data, week_iso, key_suffix=""):
                         
                         with col_add:
                             btn_label = "✅" if needed <= 0 else "➕"
-                            if st.button(btn_label, key=f"btn_{row['product_id']}_{week_iso}{key_suffix}", disabled=(needed <= 0), width="stretch"):
-                                # if db_utils.log_production(int(row['product_id']), week_iso):
-                                if db_utils.log_production(int(row['product_id'])):
+                            if st.button(btn_label, key=f"btn_{row['goal_id']}", disabled=(needed <= 0), width="stretch"):
+                                if db_utils.log_production(int(row['goal_id'])):
                                     st.toast(f"Logged 1 {row['Product']}!", icon="🌸")                                                
                                     time.sleep(0.25)
                                     st.rerun()
@@ -82,8 +81,8 @@ def render_grid(week_data, week_iso, key_suffix=""):
                             can_undo = row['qty_made'] > 0
                             with st.popover("➖", disabled=not can_undo, width="stretch", help="Undo last production"):
                                 st.write("⚠️ **Confirm Undo?**")
-                                if st.button("Confirm", key=f"undo_{row['product_id']}_{week_iso}{key_suffix}", width="stretch"):
-                                    if db_utils.undo_production(int(row['product_id']), week_iso):
+                                if st.button("Confirm", key=f"undo_{row['goal_id']}", width="stretch"):
+                                    if db_utils.undo_production(int(row['goal_id'])):
                                         st.toast(f"Undid 1 {row['Product']}", icon="↩️")
                                         time.sleep(0.25)
                                         st.rerun()
