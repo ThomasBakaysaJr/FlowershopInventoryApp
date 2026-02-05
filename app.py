@@ -39,7 +39,7 @@ else:
                         "unit_cost": st.column_config.NumberColumn("Cost ($)", min_value=0.0, step=0.01, format="$%.2f", required=True)
                     },
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                     key="inventory_editor"
                 )
 

@@ -14,7 +14,7 @@ def get_weekly_production_goals():
     
     conn = get_connection()
     query = """
-    SELECT p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date as Due, pg.qty_ordered, pg.qty_made
+    SELECT p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
     FROM production_goals pg
     JOIN products p ON pg.product_id = p.product_id
     """
@@ -25,12 +25,12 @@ def get_weekly_production_goals():
         return df
 
     # Convert to datetime and group by week (starting Monday)
-    df['Due'] = pd.to_datetime(df['Due'])
-    df['week_start_dt'] = df['Due'].dt.to_period('W').apply(lambda r: r.start_time)
+    df['due_date'] = pd.to_datetime(df['due_date'])
+    df['week_start_dt'] = df['due_date'].dt.to_period('W').apply(lambda r: r.start_time)
     df['Week Starting'] = df['week_start_dt'].dt.strftime('%b %d, %Y')
     df['week_start_iso'] = df['week_start_dt'].dt.strftime('%Y-%m-%d')
     
-    summary = df.groupby(['week_start_iso', 'Week Starting', 'product_id', 'Product', 'active']).agg({
+    summary = df.groupby(['week_start_iso', 'Week Starting', 'due_date', 'product_id', 'Product', 'active']).agg({
         'qty_ordered': 'sum',
         'qty_made': 'sum',
         'image_data': 'first'
@@ -66,13 +66,18 @@ def log_production(p_id, week_start_str=None):
             query += " AND due_date BETWEEN ? AND ?"
             params.extend([str(start_date), str(end_date)])
 
-        query += " ORDER BY due_date ASC LIMIT 1"
+        # we're not ordering anything by due date, we should only be using goal_id
+        # query += " ORDER BY due_date ASC LIMIT 1"
         
         cursor.execute(query, params)
         goal_res = cursor.fetchone()
         
+        print(f"\n\nwe're int log_production with p_id={p_id} and week_start_str={week_start_str} \
+              \nExecuted query: {query} \nWith params: {params} \nGot result: {goal_res}\n\n")
+
         if goal_res:
             g_id = goal_res[0]
+            print(f"Logging production for product_id {p_id} under goal_id {g_id}")
             cursor.execute("UPDATE production_goals SET qty_made = qty_made + 1 WHERE goal_id = ?", (g_id,))
             
             # Insert Log Entry
