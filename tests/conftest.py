@@ -7,6 +7,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils import db_utils
+import init_db
 
 TEST_DB = 'test_suite.db'
 
@@ -22,49 +23,11 @@ def setup_db():
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
 
+    # Initialize Schema using the actual app logic (Single Source of Truth)
+    init_db.initialize_database(TEST_DB)
+
     conn = sqlite3.connect(TEST_DB)
     cursor = conn.cursor()
-    cursor.executescript('''
-        CREATE TABLE inventory (
-            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT,
-            sub_category TEXT,
-            count_on_hand INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00
-        );
-        CREATE TABLE products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            display_name TEXT NOT NULL,
-            image_data BLOB,
-            selling_price REAL DEFAULT 0.00,
-            active BOOLEAN DEFAULT 1
-        );
-        CREATE TABLE recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            item_id INTEGER,
-            qty_needed INTEGER,
-            FOREIGN KEY(product_id) REFERENCES products(product_id),
-            FOREIGN KEY(item_id) REFERENCES inventory(item_id)
-        );
-        CREATE TABLE production_goals (
-            goal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            due_date DATE,
-            qty_ordered INTEGER DEFAULT 0,
-            qty_made INTEGER DEFAULT 0,
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        );
-        CREATE TABLE production_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_id INTEGER,
-            product_id INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        );
-    ''')
     
     # Seed initial data
     # Give initial stock of 100 to allow testing deductions

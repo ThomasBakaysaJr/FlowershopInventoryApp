@@ -1,8 +1,8 @@
 import sqlite3
 
-def initialize_database():
-    # This creates the file 'inventory.db' in the current directory
-    connection = sqlite3.connect('inventory.db')
+def initialize_database(db_path='inventory.db'):
+    # Creates the database at the specified path (default: inventory.db)
+    connection = sqlite3.connect(db_path)
     cursor = connection.cursor()
 
     # Create Inventory Table
@@ -66,7 +66,7 @@ def initialize_database():
 
     connection.commit()
     connection.close()
-    print("Database initialized successfully as 'inventory.db'.")
+    print(f"Database initialized successfully at '{db_path}'.")
 
 if __name__ == "__main__":
     initialize_database()
