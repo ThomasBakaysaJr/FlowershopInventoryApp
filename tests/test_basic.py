@@ -9,8 +9,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils import db_utils
 
-TEST_DB = 'test_inventory.db'
-
 # sanity checks
 
 def test_database_connection():
@@ -63,86 +61,28 @@ def test_code_quality_linting():
 
 # actual tests
 
-@pytest.fixture
-def setup_db():
-    """Fixture to set up a temporary database for testing."""
-    # Save original DB path and swap to test DB
-    original_db = db_utils.DB_PATH
-    db_utils.DB_PATH = TEST_DB
-    
-    # Initialize schema
-    conn = sqlite3.connect(TEST_DB)
-    cursor = conn.cursor()
-    cursor.executescript('''
-        CREATE TABLE inventory (
-            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT,
-            sub_category TEXT,
-            count_on_hand INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00
-        );
-        CREATE TABLE products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            display_name TEXT NOT NULL,
-            image_data BLOB,
-            selling_price REAL DEFAULT 0.00,
-            active BOOLEAN DEFAULT 1
-        );
-        CREATE TABLE recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            item_id INTEGER,
-            qty_needed INTEGER,
-            FOREIGN KEY(product_id) REFERENCES products(product_id),
-            FOREIGN KEY(item_id) REFERENCES inventory(item_id)
-        );
-        CREATE TABLE production_goals (
-            goal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            due_date DATE,
-            qty_ordered INTEGER DEFAULT 0,
-            qty_made INTEGER DEFAULT 0,
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        );
-        CREATE TABLE production_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_id INTEGER,
-            product_id INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        );
-    ''')
-    
-    # Seed test data
-    cursor.execute("INSERT INTO inventory (name, count_on_hand) VALUES ('Red Rose', 100)")
-    cursor.execute("INSERT INTO products (display_name) VALUES ('Dozen Roses')")
-    cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (1, 1, 12)")
-    # Goal for Feb 4th, 2026
-    cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made) VALUES (1, '2026-02-04', 10, 0)")
-    
-    conn.commit()
-    conn.close()
-    
-    yield
-    
-    # Cleanup
-    if os.path.exists(TEST_DB):
-        os.remove(TEST_DB)
-    db_utils.DB_PATH = original_db
-
 def test_log_production_updates_correctly(setup_db):
     """Tests that clicking 'ADD' (log_production) updates goals and inventory."""
+    db_path = setup_db
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Insert a specific goal for the date we are testing (Feb 4, 2026)
+    # Product 1 is 'Valentine Special' from conftest
+    cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made) VALUES (1, '2026-02-04', 10, 0)")
+    goal_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
     # Week starting Feb 2nd contains Feb 4th
     success = db_utils.log_production(1, "Feb 02, 2026")
     assert success is True
     
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Verify goal incremented
-    cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = 1")
+    cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (goal_id,))
     assert cursor.fetchone()[0] == 1
     
     # Verify inventory deducted (100 - 12 = 88)
@@ -152,13 +92,14 @@ def test_log_production_updates_correctly(setup_db):
 
 def test_clipboard_bulk_update_valid(setup_db):
     """Tests that valid clipboard text updates inventory."""
+    db_path = setup_db
     text = "Red Rose, Rose, 50"
     updated, errors = db_utils.process_clipboard_update(text)
     
     assert "Red Rose" in updated
     assert len(errors) == 0
     
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
     assert cursor.fetchone()[0] == 50
@@ -166,6 +107,7 @@ def test_clipboard_bulk_update_valid(setup_db):
 
 def test_clipboard_bulk_update_malformed(setup_db):
     """Tests that malformed text is caught and reported as an error."""
+    db_path = setup_db
     # One valid line, one malformed line
     text = "Red Rose, Rose, 75\nMalformed Line Without Numbers"
     updated, errors = db_utils.process_clipboard_update(text)
@@ -174,7 +116,7 @@ def test_clipboard_bulk_update_malformed(setup_db):
     assert len(errors) == 1
     assert "Invalid format" in errors[0]
     
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
     assert cursor.fetchone()[0] == 75
@@ -191,13 +133,14 @@ def test_clipboard_bulk_update_unknown_item(setup_db):
 
 def test_clipboard_bulk_update_whitespace(setup_db):
     """Tests the legacy whitespace-separated format."""
+    db_path = setup_db
     text = "Red Rose 25"
     updated, errors = db_utils.process_clipboard_update(text)
     
     assert "Red Rose" in updated
     assert len(errors) == 0
     
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT count_on_hand FROM inventory WHERE name = 'Red Rose'")
     assert cursor.fetchone()[0] == 25

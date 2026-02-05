@@ -12,50 +12,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.utils import db_utils, utils
 import seed_db
 
-TEST_DB = 'test_images.db'
-
-@pytest.fixture
-def setup_db():
-    """Fixture to set up a temporary database for image testing."""
-    original_db = db_utils.DB_PATH
-    db_utils.DB_PATH = TEST_DB
-    
-    conn = sqlite3.connect(TEST_DB)
-    cursor = conn.cursor()
-    cursor.executescript('''
-        CREATE TABLE inventory (
-            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT,
-            sub_category TEXT,
-            count_on_hand INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00
-        );
-        CREATE TABLE products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            display_name TEXT NOT NULL,
-            image_data BLOB,
-            selling_price REAL DEFAULT 0.00,
-            active BOOLEAN DEFAULT 1
-        );
-        CREATE TABLE recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            item_id INTEGER,
-            qty_needed INTEGER,
-            FOREIGN KEY(product_id) REFERENCES products(product_id),
-            FOREIGN KEY(item_id) REFERENCES inventory(item_id)
-        );
-    ''')
-    conn.commit()
-    conn.close()
-    
-    yield
-    
-    if os.path.exists(TEST_DB):
-        os.remove(TEST_DB)
-    db_utils.DB_PATH = original_db
-
 @pytest.fixture
 def dummy_image_bytes():
     """Creates a small 10x10 red square image in memory."""
@@ -75,9 +31,10 @@ def test_process_image_utility(dummy_image_bytes):
 
 def test_product_image_persistence(setup_db, dummy_image_bytes):
     """Tests that images are correctly saved to and retrieved from the database."""
+    db_path = setup_db
     product_name = "Test Arrangement"
     # Create a dummy inventory item for the recipe
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(db_path)
     conn.execute("INSERT INTO inventory (name) VALUES ('Test Stem')")
     conn.commit()
     conn.close()
