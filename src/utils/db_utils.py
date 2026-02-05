@@ -84,9 +84,6 @@ def log_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
             end_date = start_date + pd.Timedelta(days=6)
             query += " AND due_date BETWEEN ? AND ?"
             params.extend([str(start_date), str(end_date)])
-
-        # we're not ordering anything by due date, we should only be using goal_id
-        # query += " ORDER BY due_date ASC LIMIT 1"
         
         cursor.execute(query, params)
         goal_res = cursor.fetchone()
