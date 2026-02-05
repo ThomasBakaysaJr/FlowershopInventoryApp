@@ -150,6 +150,7 @@ def update_product_recipe(product_name, recipe_items, image_bytes=None, new_pric
             cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
                            (new_p_id, item_id, qty))
         
+        logger.info(f"update_product_recipe: Archived old version and created new version (ID: {new_p_id}) for '{product_name}'")
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -165,6 +166,7 @@ def delete_product(product_id):
     cursor = conn.cursor()
     try:
         cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (product_id,))
+        logger.info(f"delete_product: Soft deleted product_id {product_id}")
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -204,6 +206,7 @@ def undo_production(p_id, week_start_str=None):
         
         if log_res:
             l_id, g_id = log_res
+            logger.info(f"undo_production: Reverting production for product_id {p_id}, log_id {l_id}")
             
             # Delete the log entry
             cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
@@ -288,6 +291,7 @@ def process_clipboard_update(text_data):
             else:
                 errors.append(f"Invalid format: {line}")
                 
+        logger.info(f"process_clipboard_update: Processed batch. Updated: {len(updated_items)}, Errors: {len(errors)}")
         conn.commit()
     except Exception as e:
         logger.error(f"process_clipboard_update: Error: {e}")
@@ -313,6 +317,7 @@ def create_new_product(name, selling_price, image_bytes, recipe_items):
             cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)",
                            (product_id, item_id, qty))
         
+        logger.info(f"create_new_product: Created new product '{name}' (ID: {product_id})")
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -352,6 +357,7 @@ def update_inventory_cost(item_id, new_cost):
     cursor = conn.cursor()
     try:
         cursor.execute("UPDATE inventory SET unit_cost = ? WHERE item_id = ?", (new_cost, item_id))
+        logger.info(f"update_inventory_cost: Updated cost for item_id {item_id} to {new_cost}")
         conn.commit()
         return True
     except sqlite3.Error as e:
