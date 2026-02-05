@@ -22,6 +22,8 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+logger = logging.getLogger(__name__)
+
 st.title("University Flowers Production Dashboard")
 
 if not os.path.exists(db_utils.DB_PATH):
@@ -67,8 +69,9 @@ else:
                                 changes += 1
                     
                     if changes > 0:
-                        st.success(f"Updated {changes} items.")
-                        time.sleep(0.5)
+                        logger.info(f"Inventory updated via Admin: {changes} items changed.")
+                        st.toast(f"Updated {changes} items.")
+                        time.sleep(0.25)
                         st.rerun()
                     else:
                         st.info("No changes detected.")

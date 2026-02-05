@@ -2,15 +2,16 @@ import sqlite3
 import pandas as pd
 import os
 import logging
+from typing import Optional, List, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = 'inventory.db'
 
-def get_connection():
+def get_connection() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
-def get_weekly_production_goals():
+def get_weekly_production_goals() -> pd.DataFrame:
     """Groups production goals by the start of the week for easier planning."""
     if not os.path.exists(DB_PATH):
         return pd.DataFrame()
@@ -47,7 +48,7 @@ def get_weekly_production_goals():
     finally:
         if conn: conn.close()
 
-def get_inventory():
+def get_inventory() -> pd.DataFrame:
     try:
         if not os.path.exists(DB_PATH):
             return pd.DataFrame()
@@ -64,7 +65,7 @@ def get_inventory():
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
 
-def log_production(p_id, week_start_str=None):
+def log_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
     """Increments production count and deducts inventory (BOM)."""
     conn = get_connection()
     try:
@@ -120,7 +121,12 @@ def log_production(p_id, week_start_str=None):
     finally:
         conn.close()
 
-def update_product_recipe(product_name, recipe_items, image_bytes=None, new_price=None):
+def update_product_recipe(
+    product_name: str, 
+    recipe_items: List[Tuple[int, int]], 
+    image_bytes: Optional[bytes] = None, 
+    new_price: Optional[float] = None
+) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -160,7 +166,7 @@ def update_product_recipe(product_name, recipe_items, image_bytes=None, new_pric
     finally:
         conn.close()
 
-def delete_product(product_id):
+def delete_product(product_id: int) -> bool:
     """Soft deletes a product by marking it inactive."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -176,7 +182,7 @@ def delete_product(product_id):
     finally:
         conn.close()
 
-def undo_production(p_id, week_start_str=None):
+def undo_production(p_id: int, week_start_str: Optional[str] = None) -> bool:
     """Decrements production count and adds back inventory (BOM)."""
     conn = get_connection()
     try:
@@ -231,24 +237,26 @@ def undo_production(p_id, week_start_str=None):
     finally:
         conn.close()
 
-def get_all_recipes():
+def get_all_recipes() -> pd.DataFrame:
     """Fetches all active product recipes with ingredient details."""
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            query = """
-            SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, i.name as Ingredient, r.qty_needed as Qty
-            FROM products p
-            LEFT JOIN recipes r ON p.product_id = r.product_id
-            LEFT JOIN inventory i ON r.item_id = i.item_id
-            ORDER BY p.display_name ASC
-            """
-            df = pd.read_sql_query(query, conn)
-            return df
+        query = """
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, i.name as Ingredient, r.qty_needed as Qty
+        FROM products p
+        LEFT JOIN recipes r ON p.product_id = r.product_id
+        LEFT JOIN inventory i ON r.item_id = i.item_id
+        ORDER BY p.display_name ASC
+        """
+        df = pd.read_sql_query(query, conn)
+        return df
     except Exception as e:
         logger.error(f"get_all_recipes: Error fetching recipes: {e}")
         return pd.DataFrame()
+    finally:
+        conn.close()
 
-def process_clipboard_update(text_data):
+def process_clipboard_update(text_data: str) -> Tuple[List[str], List[str]]:
     """Parses lines like 'Rose 50' or 'Vase, 10' to update inventory counts."""
     conn = get_connection()
     updated_items = []
@@ -302,7 +310,12 @@ def process_clipboard_update(text_data):
         
     return updated_items, errors
 
-def create_new_product(name, selling_price, image_bytes, recipe_items):
+def create_new_product(
+    name: str, 
+    selling_price: float, 
+    image_bytes: Optional[bytes], 
+    recipe_items: List[Tuple[int, int]]
+) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -327,31 +340,35 @@ def create_new_product(name, selling_price, image_bytes, recipe_items):
     finally:
         conn.close()
 
-def check_product_exists(product_name):
+def check_product_exists(product_name: str) -> bool:
     """Checks if a product name already exists (case-insensitive) and is active."""
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
-            exists = cursor.fetchone() is not None
-            return exists
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        exists = cursor.fetchone() is not None
+        return exists
     except Exception as e:
         logger.error(f"check_product_exists: Error checking product {product_name}: {e}")
         return False
+    finally:
+        conn.close()
 
-def get_product_image(product_name):
+def get_product_image(product_name: str) -> Optional[bytes]:
     """Fetches the thumbnail for a specific active product."""
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT image_data FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
-            res = cursor.fetchone()
-            return res[0] if res else None
+        cursor = conn.cursor()
+        cursor.execute("SELECT image_data FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        res = cursor.fetchone()
+        return res[0] if res else None
     except Exception as e:
         logger.error(f"get_product_image: Error fetching image for {product_name}: {e}")
         return None
+    finally:
+        conn.close()
 
-def update_inventory_cost(item_id, new_cost):
+def update_inventory_cost(item_id: int, new_cost: float) -> bool:
     """Updates the unit cost for a specific inventory item."""
     conn = get_connection()
     cursor = conn.cursor()
