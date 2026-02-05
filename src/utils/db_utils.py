@@ -99,28 +99,31 @@ def log_production(p_id, week_start_str=None):
         conn.close()
 
 def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_price=None):
-    """Updates a product's image, recipe ingredients, and optionally price."""
+    """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Get Product ID
-        cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
+        # 1. Find the current active product to get its ID and current data
+        cursor.execute("SELECT product_id, selling_price, image_data FROM products WHERE display_name = ? AND active = 1 COLLATE NOCASE", (product_name,))
         res = cursor.fetchone()
         if not res:
             return False
-        p_id = res[0]
-
-        # Update Image if provided
-        if image_bytes:
-            cursor.execute("UPDATE products SET image_data = ? WHERE product_id = ?", (image_bytes, p_id))
-            
-        # Update Price if provided
-        if new_price is not None:
-            cursor.execute("UPDATE products SET selling_price = ? WHERE product_id = ?", (new_price, p_id))
-
-        # Update Recipe: Clear old -> Insert new
-        cursor.execute("DELETE FROM recipes WHERE product_id = ?", (p_id,))
-
+        
+        old_p_id, old_price, old_image_data = res
+        
+        # 2. Determine new values (use old ones if not provided)
+        final_price = new_price if new_price is not None else old_price
+        final_image = image_bytes if image_bytes is not None else old_image_data
+        
+        # 3. Archive the old product
+        cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (old_p_id,))
+        
+        # 4. Create new product version
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active) VALUES (?, ?, ?, 1)",
+                       (product_name, final_price, final_image))
+        new_p_id = cursor.lastrowid
+        
+        # 5. Insert new recipe items
         for _, row in ingredients_df.iterrows():
             ing_name = row['Ingredient']
             qty = row['Qty']
@@ -132,7 +135,7 @@ def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_pr
             if item_res:
                 item_id = item_res[0]
                 cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
-                               (p_id, item_id, qty))
+                               (new_p_id, item_id, qty))
         
         conn.commit()
         return True
@@ -144,22 +147,11 @@ def update_product_recipe(product_name, ingredients_df, image_bytes=None, new_pr
         conn.close()
 
 def delete_product(product_name):
-    """Deletes a product and its associated recipe."""
+    """Soft deletes a product by marking it inactive."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT product_id FROM products WHERE display_name = ?", (product_name,))
-        res = cursor.fetchone()
-        if not res:
-            return False
-        p_id = res[0]
-
-        # Delete from dependent tables
-        cursor.execute("DELETE FROM recipes WHERE product_id = ?", (p_id,))
-        cursor.execute("DELETE FROM production_logs WHERE product_id = ?", (p_id,))
-        cursor.execute("DELETE FROM production_goals WHERE product_id = ?", (p_id,))
-        cursor.execute("DELETE FROM products WHERE product_id = ?", (p_id,))
-        
+        cursor.execute("UPDATE products SET active = 0 WHERE display_name = ? AND active = 1 COLLATE NOCASE", (product_name,))
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -308,19 +300,19 @@ def create_new_product(name, selling_price, image_bytes, recipe_items):
         conn.close()
 
 def check_product_exists(product_name):
-    """Checks if a product name already exists (case-insensitive)."""
+    """Checks if a product name already exists (case-insensitive) and is active."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE", (product_name,))
+    cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
     exists = cursor.fetchone() is not None
     conn.close()
     return exists
 
 def get_product_image(product_name):
-    """Fetches the thumbnail for a specific product."""
+    """Fetches the thumbnail for a specific active product."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT image_data FROM products WHERE display_name = ? COLLATE NOCASE", (product_name,))
+    cursor.execute("SELECT image_data FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
     res = cursor.fetchone()
     conn.close()
     return res[0] if res else None
