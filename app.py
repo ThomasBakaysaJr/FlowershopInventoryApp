@@ -4,10 +4,7 @@ import os
 import logging
 from src.utils import db_utils
 import time
-import src.components.admin.admin_design as admin_design
-import src.components.designer_dashboard as designer_dashboard
-import src.components.admin.admin_tools as admin_tools
-import src.components.recipe_display as recipe_display
+from src.components import admin, design, recipe_display
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
@@ -33,7 +30,7 @@ else:
     tab_designer, tab_admin = st.tabs(["🎨 Designer Space", "⚙️ Admin Space"])
 
     with tab_designer:
-        designer_dashboard.render_designer_dashboard()
+        design.designer_dashboard.render_designer_dashboard()
 
     with tab_admin:
         raw_inventory_df = db_utils.get_inventory()
@@ -83,7 +80,7 @@ else:
             with design_tabs[0]:
                 recipe_display.render_recipe_display(allow_edit=True)
             with design_tabs[1]:
-                admin_design.render_design_tab(raw_inventory_df)
+                admin.admin_design.render_design_tab(raw_inventory_df)
 
         with admin_sub_tabs[2]:
-            admin_tools.render_admin_tools(raw_inventory_df)
+            admin.admin_tools.render_admin_tools(raw_inventory_df)

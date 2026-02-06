@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from src.utils import db_utils
-import src.components.recipe_display as recipe_display
+from src.components import recipe_display
 
 def render_designer_dashboard():
     st.header("This Week's Work")

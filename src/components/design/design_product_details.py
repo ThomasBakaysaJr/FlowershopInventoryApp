@@ -1,11 +1,49 @@
 import streamlit as st
 from src.utils import db_utils
 
-def render(container):
+def render(container, inventory_df):
     """Renders the Product Details form (Name, Image, Pricing) in the provided container."""
     with container:
         st.subheader("1. Product Details")
         prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze", key="prod_name_input")
+        
+        # --- AUTO-LOAD LOGIC ---
+        if 'last_loaded_prod_name' not in st.session_state:
+            st.session_state.last_loaded_prod_name = ""
+            
+        # Check if name changed and is not empty
+        if prod_name and prod_name != st.session_state.last_loaded_prod_name:
+            # Try to fetch details
+            details = db_utils.get_product_details(prod_name)
+            if details:
+                # Found existing product! Load it.
+                st.session_state.new_recipe = []
+                for ing in details['recipe']:
+                    # Find cost from inventory_df
+                    cost = 0.0
+                    if not inventory_df.empty:
+                        match = inventory_df[inventory_df['item_id'] == ing['item_id']]
+                        if not match.empty:
+                            cost = match.iloc[0]['unit_cost']
+                    
+                    st.session_state.new_recipe.append({
+                        'id': ing['item_id'],
+                        'name': ing['name'],
+                        'qty': ing['qty'],
+                        'cost': cost
+                    })
+                
+                # Update Pricing
+                st.session_state.final_price_input = float(details['price'])
+                st.session_state.last_suggested_price = float(details['price'])
+                
+                # Set Editing Context
+                st.session_state.editing_product_id = details['product_id']
+                st.session_state.editing_product_original_name = details['name']
+                
+                st.toast(f"Loaded recipe for '{details['name']}'", icon="📖")
+            
+            st.session_state.last_loaded_prod_name = prod_name
         
         # Show existing image if it exists so user knows they don't need to re-upload
         if prod_name:

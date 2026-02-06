@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 from src.utils import db_utils, utils
-from src.components import design_product_details
-from src.components import design_recipe_builder
-from src.components import design_save_logic
+from src.components import design
 
 def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")
@@ -30,6 +28,7 @@ def render_design_tab(inventory_df):
         st.session_state.last_suggested_price = 0.0
         st.session_state.confirm_overwrite = False
         st.session_state.should_clear_input = False
+        st.session_state.last_loaded_prod_name = ""
 
     # Initialize session state for the recipe being built
     if 'new_recipe' not in st.session_state:
@@ -72,6 +71,7 @@ def render_design_tab(inventory_df):
             # Track that we are editing this specific product
             st.session_state['editing_product_original_name'] = details['name']
             st.session_state['editing_product_id'] = details['product_id']
+            st.session_state['last_loaded_prod_name'] = details['name']
             st.toast(f"Loaded '{details['name']}' for editing.", icon="✏️")
         else:
             st.error(f"Could not load details for {target_name}")
@@ -80,10 +80,10 @@ def render_design_tab(inventory_df):
     col_details, col_builder = st.columns([1, 1.5], gap="large")
 
     # 1. Render Product Details (Left Column)
-    uploaded_file, save_clicked = design_product_details.render(col_details)
+    uploaded_file, save_clicked = design.design_product_details.render(col_details, inventory_df)
     
     # 2. Render Recipe Builder (Right Column)
-    design_recipe_builder.render(col_builder, inventory_df)
+    design.design_recipe_builder.render(col_builder, inventory_df)
 
     # 3. Handle Save Logic
     with col_details:
@@ -92,10 +92,10 @@ def render_design_tab(inventory_df):
             final_price = st.session_state.get("final_price_input", 0.0)
             recipe_items = st.session_state.new_recipe
             
-            design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items)
 
         # 4. Confirmation Dialog for Overwrite
-        design_save_logic.render_overwrite_dialog(
+        design.design_save_logic.render_overwrite_dialog(
             st.session_state.get("prod_name_input", ""),
             st.session_state.get("final_price_input", 0.0),
             uploaded_file,
