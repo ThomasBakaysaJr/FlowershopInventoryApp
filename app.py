@@ -26,13 +26,21 @@ st.title("University Flowers Production Dashboard")
 if not os.path.exists(db_utils.DB_PATH):
     st.error("Database not found! Please run `python init_db.py` first.")
 else:
-    # Create tabs for different views
-    tab_designer, tab_admin = st.tabs(["🎨 Designer Space", "⚙️ Admin Space"])
+    # Initialize navigation state
+    if "nav_main" not in st.session_state:
+        st.session_state.nav_main = "🎨 Designer Space"
 
-    with tab_designer:
+    st.segmented_control(
+        "Main Navigation",
+        options=["🎨 Designer Space", "⚙️ Admin Space"],
+        key="nav_main",
+        label_visibility="collapsed"
+    )
+
+    if st.session_state.nav_main == "🎨 Designer Space":
         design.designer_dashboard.render_designer_dashboard()
 
-    with tab_admin:
+    elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         admin_sub_tabs = st.tabs(["📊 Stock Levels", "🎨 Recipes & Design", "🛠️ Admin Tools"])
         
