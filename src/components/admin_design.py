@@ -3,6 +3,7 @@ import pandas as pd
 from src.utils import db_utils, utils
 from src.components import design_product_details
 from src.components import design_recipe_builder
+from src.components import design_save_logic
 
 def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")
@@ -89,81 +90,14 @@ def render_design_tab(inventory_df):
         if save_clicked:
             prod_name = st.session_state.get("prod_name_input", "")
             final_price = st.session_state.get("final_price_input", 0.0)
+            recipe_items = st.session_state.new_recipe
             
-            if prod_name and st.session_state.new_recipe:
-                original_name = st.session_state.get('editing_product_original_name')
-                
-                # 1. Check for Collision (Safeguard)
-                collision = False
-                if original_name:
-                    # Edit Mode: Collision only if renaming to an existing product
-                    if prod_name.lower() != original_name.lower() and db_utils.check_product_exists(prod_name):
-                        collision = True
-                else:
-                    # Create Mode: Collision if product exists
-                    if db_utils.check_product_exists(prod_name):
-                        collision = True
-                
-                # 2. Process Inputs (Common)
-                img_bytes = None
-                if uploaded_file:
-                    img_bytes = utils.process_image(uploaded_file)
-                
-                db_items = [(int(x['id']), int(x['qty'])) for x in st.session_state.new_recipe]
-
-                # 3. Execute Update or Create
-                original_id = st.session_state.get('editing_product_id')
-                # Update: Must trigger overwrite safeguard if product already exists
-                if original_id or collision:
-                    st.session_state.confirm_overwrite = True
-                    st.rerun()
-                else:
-                    if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
-                        st.success(f"Successfully created '{prod_name}'!")
-                        st.session_state.should_clear_input = True
-                        st.rerun()
-                    else:
-                        st.error("Failed to save product. Check database connection.")
-            else:
-                st.warning("Please provide a name and at least one ingredient.")
+            design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items)
 
         # 4. Confirmation Dialog for Overwrite
-        if st.session_state.get('confirm_overwrite'):
-            prod_name = st.session_state.get("prod_name_input", "")
-            final_price = st.session_state.get("final_price_input", 0.0)
-            
-            st.warning(f"Product '{prod_name}' already exists. Overwrite?")
-            col_yes, col_no = st.columns(2)
-            with col_yes:
-                if st.button("Yes, Overwrite"):
-                    img_bytes = None
-                    if uploaded_file:
-                        img_bytes = utils.process_image(uploaded_file)
-                        if img_bytes is None:
-                            st.error("Error processing image. Please check the file format.")
-                            st.stop()
-                    
-                    # Prepare list for DB: [(id, qty), ...]
-                    db_items = [(int(x['id']), int(x['qty'])) for x in st.session_state.new_recipe]
-                    
-                    # We only reach here via the "Yes, Overwrite" button.
-                    # If we are in Edit Mode, we have an ID. If Create Mode (overwrite self), we need to find the ID of the thing we are overwriting.
-                    
-                    target_id = st.session_state.get('editing_product_id')
-                    
-                    # If we don't have an editing ID (Create Mode), we need to fetch the ID of the existing product we are overwriting
-                    if not target_id:
-                        # Fetch ID of the product we are about to overwrite
-                        details = db_utils.get_product_details(prod_name)
-                        if details:
-                            target_id = details['product_id']
-                    
-                    if target_id and db_utils.update_product_recipe(target_id, prod_name, db_items, img_bytes, final_price):
-                        st.success(f"Updated '{prod_name}'!")
-                        st.session_state.confirm_overwrite = False
-                        st.session_state.should_clear_input = True
-                        st.rerun()
-            with col_no:
-                if st.button("Cancel"):
-                    st.session_state.confirm_overwrite = False
-                    st.rerun()
+        design_save_logic.render_overwrite_dialog(
+            st.session_state.get("prod_name_input", ""),
+            st.session_state.get("final_price_input", 0.0),
+            uploaded_file,
+            st.session_state.new_recipe
+        )
