@@ -4,9 +4,9 @@ import os
 import logging
 from src.utils import db_utils
 import time
-import src.components.admin_design as admin_design
+import src.components.admin.admin_design as admin_design
 import src.components.designer_dashboard as designer_dashboard
-import src.components.admin_tools as admin_tools
+import src.components.admin.admin_tools as admin_tools
 import src.components.recipe_display as recipe_display
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
