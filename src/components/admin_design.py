@@ -6,9 +6,26 @@ def render_design_tab(inventory_df):
     st.header("🌸 New Arrangement Designer")
     st.caption("Build new products by selecting items from your inventory.")
 
+    # Initialize uploader key if not present (Fix for sticky images)
+    if 'uploader_key' not in st.session_state:
+        st.session_state.uploader_key = 0
+
+    # Initialize confirm_overwrite if not present
+    if 'confirm_overwrite' not in st.session_state:
+        st.session_state.confirm_overwrite = False
+
     # --- CLEAR INPUT TRIGGER ---
     if st.session_state.get('should_clear_input'):
         st.session_state.prod_name_input = ""
+        st.session_state.final_price_input = 0.0
+        st.session_state.pop('editing_product_original_name', None)
+        st.session_state.pop('editing_product_id', None)
+        st.session_state.new_recipe = []
+        
+        # Clear residual state
+        st.session_state.uploader_key += 1
+        st.session_state.last_suggested_price = 0.0
+        st.session_state.confirm_overwrite = False
         st.session_state.should_clear_input = False
 
     # Initialize session state for the recipe being built
@@ -17,31 +34,44 @@ def render_design_tab(inventory_df):
 
     # --- PRE-LOAD LOGIC (From Recipe Display Edit) ---
     if 'design_edit_name' in st.session_state:
-        loaded_name = st.session_state.pop('design_edit_name')
-        loaded_price = st.session_state.pop('design_edit_price')
-        loaded_ingredients = st.session_state.pop('design_edit_ingredients')
+        target_name = st.session_state.pop('design_edit_name')
+        # Clear legacy keys if they exist
+        st.session_state.pop('design_edit_price', None)
+        st.session_state.pop('design_edit_ingredients', None)
         
-        # 1. Set Name Input
-        st.session_state['prod_name_input'] = loaded_name
+        # Fetch fresh details from DB
+        details = db_utils.get_product_details(target_name)
         
-        # 2. Set Price Input & Prevent auto-overwrite
-        st.session_state['final_price_input'] = float(loaded_price)
-        st.session_state.last_suggested_price = float(loaded_price)
-        
-        # 3. Rebuild Recipe List
-        st.session_state.new_recipe = []
-        for ing in loaded_ingredients:
-            # Find item in inventory to get ID and Cost
-            match = inventory_df[inventory_df['name'] == ing['Ingredient']]
-            if not match.empty:
-                row = match.iloc[0]
+        if details:
+            # 1. Set Name Input
+            st.session_state['prod_name_input'] = details['name']
+            
+            # 2. Set Price Input & Prevent auto-overwrite
+            st.session_state['final_price_input'] = float(details['price'])
+            st.session_state.last_suggested_price = float(details['price'])
+            
+            # 3. Rebuild Recipe List
+            st.session_state.new_recipe = []
+            for ing in details['recipe']:
+                # Find cost from inventory_df
+                cost = 0.0
+                match = inventory_df[inventory_df['item_id'] == ing['item_id']]
+                if not match.empty:
+                    cost = match.iloc[0]['unit_cost']
+                
                 st.session_state.new_recipe.append({
-                    'id': row['item_id'],
-                    'name': row['name'],
-                    'qty': ing['Qty'],
-                    'cost': row['unit_cost']
+                    'id': ing['item_id'],
+                    'name': ing['name'],
+                    'qty': ing['qty'],
+                    'cost': cost
                 })
-        st.toast(f"Loaded '{loaded_name}' for editing.", icon="✏️")
+            
+            # Track that we are editing this specific product
+            st.session_state['editing_product_original_name'] = details['name']
+            st.session_state['editing_product_id'] = details['product_id']
+            st.toast(f"Loaded '{details['name']}' for editing.", icon="✏️")
+        else:
+            st.error(f"Could not load details for {target_name}")
 
     # --- INPUT SECTION ---
     col_details, col_builder = st.columns([1, 1.5], gap="large")
@@ -56,7 +86,7 @@ def render_design_tab(inventory_df):
             if current_img:
                 st.image(current_img, caption="Current Image (Will be kept if no new upload)", width=150)
 
-        uploaded_file = st.file_uploader("Upload Thumbnail", type=['png', 'jpg', 'jpeg'])
+        uploaded_file = st.file_uploader("Upload Thumbnail", type=['png', 'jpg', 'jpeg'], key=f"uploader_{st.session_state.uploader_key}")
         
         st.divider()
         
@@ -93,22 +123,42 @@ def render_design_tab(inventory_df):
 
         if st.button("💾 Save / Update Product", type="primary", width="stretch"):
             if prod_name and st.session_state.new_recipe:
-                # Check if product exists
-                if db_utils.check_product_exists(prod_name):
-                    st.session_state.confirm_overwrite = True
+                original_name = st.session_state.get('editing_product_original_name')
+                
+                # 1. Check for Collision (Safeguard)
+                collision = False
+                if original_name:
+                    # Edit Mode: Collision only if renaming to an existing product
+                    if prod_name.lower() != original_name.lower() and db_utils.check_product_exists(prod_name):
+                        collision = True
                 else:
-                    # Create New
-                    img_bytes = None
-                    if uploaded_file:
-                        img_bytes = utils.process_image(uploaded_file)
+                    # Create Mode: Collision if product exists
+                    if db_utils.check_product_exists(prod_name):
+                        collision = True
+                
+                # testing: shouldn't be needed, overwrite should be triggered
+                # elsewhere  
+                # if collision:
+                #     st.session_state.confirm_overwrite = True
+                #     st.rerun()
 
-                    # Prepare list for DB: [(id, qty), ...]
-                    db_items = [(x['id'], x['qty']) for x in st.session_state.new_recipe]
-                    
+                # 2. Process Inputs (Common)
+                img_bytes = None
+                if uploaded_file:
+                    img_bytes = utils.process_image(uploaded_file)
+                
+                db_items = [(int(x['id']), int(x['qty'])) for x in st.session_state.new_recipe]
+
+                # 3. Execute Update or Create
+                original_id = st.session_state.get('editing_product_id')
+                # Update: Must trigger overwrite safeguard if product already exists
+                if original_id or collision:
+                    st.session_state.confirm_overwrite = True
+                    st.rerun()
+                else:
                     if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
                         st.success(f"Successfully created '{prod_name}'!")
-                        st.session_state.new_recipe = [] # Reset
-                        st.session_state.should_clear_input = True # Trigger clear on next run
+                        st.session_state.should_clear_input = True
                         st.rerun()
                     else:
                         st.error("Failed to save product. Check database connection.")
@@ -131,9 +181,20 @@ def render_design_tab(inventory_df):
                     # Prepare list for DB: [(id, qty), ...]
                     db_items = [(int(x['id']), int(x['qty'])) for x in st.session_state.new_recipe]
                     
-                    if db_utils.update_product_recipe(prod_name, db_items, img_bytes, final_price):
+                    # We only reach here via the "Yes, Overwrite" button.
+                    # If we are in Edit Mode, we have an ID. If Create Mode (overwrite self), we need to find the ID of the thing we are overwriting.
+                    
+                    target_id = st.session_state.get('editing_product_id')
+                    
+                    # If we don't have an editing ID (Create Mode), we need to fetch the ID of the existing product we are overwriting
+                    if not target_id:
+                        # Fetch ID of the product we are about to overwrite
+                        details = db_utils.get_product_details(prod_name)
+                        if details:
+                            target_id = details['product_id']
+                    
+                    if target_id and db_utils.update_product_recipe(target_id, prod_name, db_items, img_bytes, final_price):
                         st.success(f"Updated '{prod_name}'!")
-                        st.session_state.new_recipe = []
                         st.session_state.confirm_overwrite = False
                         st.session_state.should_clear_input = True
                         st.rerun()

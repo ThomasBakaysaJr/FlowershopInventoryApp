@@ -62,12 +62,16 @@ def test_update_product_recipe(setup_db):
     # Create a dummy goal for the old product to verify migration
     cursor.execute("INSERT INTO production_goals (product_id, qty_ordered) VALUES ((SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1), 10)")
     
+    # Get the ID for the update call
+    cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1")
+    p_id = cursor.fetchone()[0]
+    
     conn.close()
 
     # New Recipe: 5 Lilies instead of 12 Roses
     new_recipe_items = [(lily_id, 5)]
     
-    success = db_utils.update_product_recipe("Valentine Special", new_recipe_items, new_price=60.00)
+    success = db_utils.update_product_recipe(p_id, "Valentine Special", new_recipe_items, new_price=60.00)
     assert success is True
     
     conn = sqlite3.connect(db_path)

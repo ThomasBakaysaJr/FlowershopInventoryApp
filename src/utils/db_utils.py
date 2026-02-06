@@ -102,7 +102,8 @@ def log_production(goal_id: int) -> bool:
         conn.close()
 
 def update_product_recipe(
-    product_name: str, 
+    current_product_id: int,
+    new_name: str,
     recipe_items: List[Tuple[int, int]], 
     image_bytes: Optional[bytes] = None, 
     new_price: Optional[float] = None
@@ -111,24 +112,33 @@ def update_product_recipe(
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # 1. Find the current active product to get its ID and current data
-        cursor.execute("SELECT product_id, selling_price, image_data FROM products WHERE display_name = ? AND active = 1 COLLATE NOCASE", (product_name,))
+        # 1. Find the current product to get its current data
+        cursor.execute("SELECT selling_price, image_data, display_name FROM products WHERE product_id = ?", (current_product_id,))
         res = cursor.fetchone()
         if not res:
             return False
         
-        old_p_id, old_price, old_image_data = res
+        old_price, old_image_data, old_name = res
         
         # 2. Determine new values (use old ones if not provided)
         final_price = new_price if new_price is not None else old_price
         final_image = image_bytes if image_bytes is not None else old_image_data
+        final_name = new_name.strip()
+        
+        # If renaming, check if the target name already exists and is active. If so, archive it too.
+        if final_name.lower() != old_name.lower():
+             cursor.execute("SELECT product_id FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (final_name,))
+             target_res = cursor.fetchone()
+             if target_res:
+                 cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_res[0],))
+                 logger.info(f"update_product_recipe: Archived existing target product '{final_name}' (ID: {target_res[0]}) to allow overwrite.")
         
         # 3. Archive the old product
-        cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (old_p_id,))
+        cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (current_product_id,))
         
         # 4. Create new product version
         cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active) VALUES (?, ?, ?, 1)",
-                       (product_name, final_price, final_image))
+                       (final_name, final_price, final_image))
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
@@ -136,7 +146,7 @@ def update_product_recipe(
             cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
                            (new_p_id, item_id, qty))
         
-        logger.info(f"update_product_recipe: Archived old version and created new version (ID: {new_p_id}) for '{product_name}'")
+        logger.info(f"update_product_recipe: Archived old version and created new version (ID: {new_p_id}) for '{final_name}'")
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -333,6 +343,42 @@ def get_product_image(product_name: str) -> Optional[bytes]:
         return res[0] if res else None
     except Exception as e:
         logger.error(f"get_product_image: Error fetching image for {product_name}: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_product_details(product_name: str) -> Optional[dict]:
+    """Fetches full details for a product, including all recipe items."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        # Get Product Info
+        cursor.execute("SELECT product_id, selling_price, image_data, display_name FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        res = cursor.fetchone()
+        if not res:
+            return None
+        
+        p_id, price, img, db_name = res
+        
+        # Get Recipe Items
+        cursor.execute("""
+            SELECT r.item_id, i.name, r.qty_needed 
+            FROM recipes r
+            JOIN inventory i ON r.item_id = i.item_id
+            WHERE r.product_id = ?
+        """, (p_id,))
+        
+        recipe_items = [{"item_id": row[0], "name": row[1], "qty": row[2]} for row in cursor.fetchall()]
+        
+        return {
+            "product_id": p_id,
+            "name": db_name,
+            "price": price,
+            "image_data": img,
+            "recipe": recipe_items
+        }
+    except Exception as e:
+        logger.error(f"get_product_details: Error: {e}")
         return None
     finally:
         conn.close()
