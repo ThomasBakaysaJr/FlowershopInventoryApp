@@ -42,9 +42,18 @@ else:
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
-        admin_sub_tabs = st.tabs(["📊 Stock Levels", "🎨 Recipes & Design", "🛠️ Admin Tools"])
         
-        with admin_sub_tabs[0]:
+        if "nav_admin" not in st.session_state:
+            st.session_state.nav_admin = "📊 Stock Levels"
+
+        st.segmented_control(
+            "Admin Navigation",
+            options=["📊 Stock Levels", "📖 Recipe Book", "✏️ Design Studio", "🛠️ Admin Tools"],
+            key="nav_admin",
+            label_visibility="collapsed"
+        )
+        
+        if st.session_state.nav_admin == "📊 Stock Levels":
             st.header("Current Stock Levels")
             if not raw_inventory_df.empty:
                 edited_df = st.data_editor(
@@ -83,12 +92,11 @@ else:
             else:
                 st.info("Inventory is currently empty.")
         
-        with admin_sub_tabs[1]:
-            design_tabs = st.tabs(["📖 Current Recipes", "✏️ Design Studio"])
-            with design_tabs[0]:
-                recipe_display.render_recipe_display(allow_edit=True)
-            with design_tabs[1]:
-                admin.admin_design.render_design_tab(raw_inventory_df)
+        elif st.session_state.nav_admin == "📖 Recipe Book":
+            recipe_display.render_recipe_display(allow_edit=True)
 
-        with admin_sub_tabs[2]:
+        elif st.session_state.nav_admin == "✏️ Design Studio":
+            admin.admin_design.render_design_tab(raw_inventory_df)
+
+        elif st.session_state.nav_admin == "🛠️ Admin Tools":
             admin.admin_tools.render_admin_tools(raw_inventory_df)
