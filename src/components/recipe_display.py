@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from src.utils import db_utils
 
 def render_recipe_display(allow_edit=False):
@@ -47,7 +48,9 @@ def render_recipe_display(allow_edit=False):
                                 st.session_state['design_edit_name'] = product_name
                                 st.session_state['design_edit_price'] = recipe['Price'].iloc[0]
                                 st.session_state['design_edit_ingredients'] = recipe[['Ingredient', 'Qty']].to_dict('records')
-                                st.toast(f"Loaded '{product_name}'! Switch to 'Design Studio' tab to edit.", icon="🎨")
+                                st.toast(f"Loading '{product_name}' in Design Studio...", icon="🎨")
+                                time.sleep(0.25)
+                                st.rerun()
                                 
                             with st.popover("🗑️", help="Delete Product"):
                                 st.write(f"Delete **{product_name}**?")
