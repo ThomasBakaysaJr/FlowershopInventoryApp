@@ -39,7 +39,7 @@ def test_log_production_logic(setup_db):
         cursor = conn.cursor()
         
         # Check Goal Progress (Should be 1 made)
-        cursor.execute("SELECT qty_made FROM production_goals WHERE product_id = ?", (p_id,))
+        cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE product_id = ?", (p_id,))
         assert cursor.fetchone()[0] == 1
         
         # Check Inventory Deduction (Recipe is 12 Roses)
@@ -78,7 +78,7 @@ def test_undo_production_logic(setup_db):
         cursor = conn.cursor()
         
         # Check Goal Progress (Should be back to 0)
-        cursor.execute("SELECT qty_made FROM production_goals WHERE product_id = ?", (p_id,))
+        cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE product_id = ?", (p_id,))
         assert cursor.fetchone()[0] == 0
         
         # Check Inventory Return (Should be back to 100)
@@ -152,11 +152,11 @@ def test_log_production_targets_specific_goal(setup_db):
         
         # Create two goals for the same product
         # Goal 1: Due later (Feb 20)
-        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_made, due_date) VALUES (?, 10, 0, '2026-02-20')", (p_id,))
+        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_fulfilled, due_date) VALUES (?, 10, 0, '2026-02-20')", (p_id,))
         g_id_late = cursor.lastrowid
         
         # Goal 2: Due earlier (Feb 10)
-        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_made, due_date) VALUES (?, 10, 0, '2026-02-10')", (p_id,))
+        cursor.execute("INSERT INTO production_goals (product_id, qty_ordered, qty_fulfilled, due_date) VALUES (?, 10, 0, '2026-02-10')", (p_id,))
         g_id_early = cursor.lastrowid
         conn.commit()
         
@@ -165,10 +165,10 @@ def test_log_production_targets_specific_goal(setup_db):
         db_utils.log_production(g_id_late)
         
         # --- VERIFY ---
-        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_late,))
+        cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE goal_id = ?", (g_id_late,))
         assert cursor.fetchone()[0] == 1
         
-        cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (g_id_early,))
+        cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE goal_id = ?", (g_id_early,))
         assert cursor.fetchone()[0] == 0
     finally:
         conn.close()

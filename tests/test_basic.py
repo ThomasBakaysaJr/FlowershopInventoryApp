@@ -72,7 +72,7 @@ def test_log_production_updates_correctly(setup_db):
     
     # Insert a specific goal for the date we are testing (Feb 4, 2026)
     # Product 1 is 'Valentine Special' from conftest
-    cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made) VALUES (1, '2026-02-04', 10, 0)")
+    cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (1, '2026-02-04', 10, 0)")
     goal_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -85,7 +85,7 @@ def test_log_production_updates_correctly(setup_db):
     cursor = conn.cursor()
     
     # Verify goal incremented
-    cursor.execute("SELECT qty_made FROM production_goals WHERE goal_id = ?", (goal_id,))
+    cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE goal_id = ?", (goal_id,))
     assert cursor.fetchone()[0] == 1
     
     # Verify inventory deducted (100 - 12 = 88)
