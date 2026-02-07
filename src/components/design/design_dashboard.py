@@ -91,13 +91,15 @@ def render_design_tab(inventory_df):
             prod_name = st.session_state.get("prod_name_input", "")
             final_price = st.session_state.get("final_price_input", 0.0)
             recipe_items = st.session_state.new_recipe
+            rollover_stock = st.session_state.get("rollover_stock_input", True)
             
-            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock)
 
         # 4. Confirmation Dialog for Overwrite
         design.design_save_logic.render_overwrite_dialog(
             st.session_state.get("prod_name_input", ""),
             st.session_state.get("final_price_input", 0.0),
             uploaded_file,
-            st.session_state.new_recipe
+            st.session_state.new_recipe,
+            st.session_state.get("rollover_stock_input", True)
         )

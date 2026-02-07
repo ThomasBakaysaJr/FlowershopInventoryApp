@@ -89,6 +89,7 @@ def render(container, inventory_df):
         st.caption(f"(Based on {MARKUP}x markup)")
         
         st.number_input("Final Selling Price ($)", min_value=0.0, step=1.0, key="final_price_input")
+        st.checkbox("Rollover Stock Count?", value=True, key="rollover_stock_input", help="If checked, existing stock count will be moved to the new version.")
 
         save_clicked = st.button("💾 Save / Update Product", type="primary", width="stretch")
         

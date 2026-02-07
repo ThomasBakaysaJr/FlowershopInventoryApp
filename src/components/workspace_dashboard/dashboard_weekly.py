@@ -63,7 +63,7 @@ def render_grid(week_data, key_suffix=""):
         for j in range(2):
             if i + j < len(week_data):
                 row = week_data.iloc[i + j]
-                needed = row['qty_ordered'] - row['qty_made']
+                needed = row['qty_ordered'] - row['qty_fulfilled']
                 
                 with grid_cols[j]:
                     with st.container(border=True):
@@ -94,7 +94,7 @@ def render_grid(week_data, key_suffix=""):
 
                         with col_undo:
                             # Only allow undo if something has been made this week
-                            can_undo = row['qty_made'] > 0
+                            can_undo = row['qty_fulfilled'] > 0
                             with st.popover("➖", disabled=not can_undo, width="stretch", help="Undo last production"):
                                 st.write("⚠️ **Confirm Undo?**")
                                 if st.button("Confirm", key=f"undo_{row['goal_id']}", width="stretch"):

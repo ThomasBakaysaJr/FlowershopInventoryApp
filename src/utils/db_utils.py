@@ -20,7 +20,7 @@ def get_weekly_production_goals() -> pd.DataFrame:
     try:
         conn = get_connection()
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         """
@@ -66,18 +66,18 @@ def log_production(goal_id: int) -> bool:
         cursor = conn.cursor()
 
         # 2. Get product_id and current status from the specific goal
-        cursor.execute("SELECT product_id, qty_made, qty_ordered FROM production_goals WHERE goal_id = ?", (goal_id,))
+        cursor.execute("SELECT product_id, qty_fulfilled, qty_ordered FROM production_goals WHERE goal_id = ?", (goal_id,))
         res = cursor.fetchone()
         
         if not res:
             logger.error(f"log_production: Goal ID {goal_id} not found.")
             return False
         
-        p_id, qty_made, qty_ordered = res
+        p_id, qty_fulfilled, qty_ordered = res
         logger.debug(f"log_production: goal_id={goal_id}, product_id={p_id}")
 
         # Update Goal
-        cursor.execute("UPDATE production_goals SET qty_made = qty_made + 1 WHERE goal_id = ?", (goal_id,))
+        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + 1 WHERE goal_id = ?", (goal_id,))
         
         # Insert Log Entry
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
@@ -106,19 +106,20 @@ def update_product_recipe(
     new_name: str,
     recipe_items: List[Tuple[int, int]], 
     image_bytes: Optional[bytes] = None, 
-    new_price: Optional[float] = None
+    new_price: Optional[float] = None,
+    rollover_stock: bool = True
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         # 1. Find the current product to get its current data
-        cursor.execute("SELECT selling_price, image_data, display_name FROM products WHERE product_id = ?", (current_product_id,))
+        cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand FROM products WHERE product_id = ?", (current_product_id,))
         res = cursor.fetchone()
         if not res:
             return False
         
-        old_price, old_image_data, old_name = res
+        old_price, old_image_data, old_name, current_stock = res
         
         # 2. Determine new values (use old ones if not provided)
         final_price = new_price if new_price is not None else old_price
@@ -137,8 +138,9 @@ def update_product_recipe(
         cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (current_product_id,))
         
         # 4. Create new product version
-        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active) VALUES (?, ?, ?, 1)",
-                       (final_name, final_price, final_image))
+        final_stock = current_stock if rollover_stock else 0
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand) VALUES (?, ?, ?, 1, ?)",
+                       (final_name, final_price, final_image, final_stock))
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
@@ -197,7 +199,7 @@ def undo_production(goal_id: int) -> bool:
             cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
             
             # Decrement the goal
-            cursor.execute("UPDATE production_goals SET qty_made = qty_made - 1 WHERE goal_id = ?", (goal_id,))
+            cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?", (goal_id,))
             
             # Add back to Inventory (Bill of Materials)
             cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
@@ -221,7 +223,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, r.item_id, i.name as Ingredient, r.qty_needed as Qty
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, r.item_id, i.name as Ingredient, r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -416,12 +418,12 @@ def get_product_details(product_name: str) -> Optional[dict]:
     try:
         cursor = conn.cursor()
         # Get Product Info
-        cursor.execute("SELECT product_id, selling_price, image_data, display_name FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        cursor.execute("SELECT product_id, selling_price, image_data, display_name, stock_on_hand FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
         res = cursor.fetchone()
         if not res:
             return None
         
-        p_id, price, img, db_name = res
+        p_id, price, img, db_name, stock = res
         
         # Get Recipe Items
         cursor.execute("""
@@ -438,7 +440,8 @@ def get_product_details(product_name: str) -> Optional[dict]:
             "name": db_name,
             "price": price,
             "image_data": img,
-            "recipe": recipe_items
+            "recipe": recipe_items,
+            "stock_on_hand": stock
         }
     except Exception as e:
         logger.error(f"get_product_details: Error: {e}")
@@ -486,7 +489,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
         
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?

@@ -58,20 +58,21 @@ def seed_database():
         item_ids[name] = cursor.lastrowid
 
     # 2. Insert Products
+    # Format: (Name, Price, Stock on Hand)
     products_to_create = [
-        ("Dozen Red Roses", 65.00),
-        ("Spring Mix", 45.00),
-        ("Lily Elegance", 85.00),
-        ("Budget Bud Vase", 15.00)
+        ("Dozen Red Roses", 65.00, 0),
+        ("Spring Mix", 45.00, 5),
+        ("Lily Elegance", 85.00, 0),
+        ("Budget Bud Vase", 15.00, 10)
     ]
     
     product_ids = {}
-    for name, price in products_to_create:
+    for name, price, stock in products_to_create:
         img = load_image(name)
         cursor.execute('''
-            INSERT INTO products (display_name, selling_price, image_data, active)
-            VALUES (?, ?, ?, ?)
-        ''', (name, price, img, 1))
+            INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (name, price, img, 1, stock))
         product_ids[name] = cursor.lastrowid
 
     # 3. Insert Recipes
@@ -117,7 +118,7 @@ def seed_database():
     ]
 
     cursor.executemany('''
-        INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made)
+        INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled)
         VALUES (?, ?, ?, ?)
     ''', production_goals)
 

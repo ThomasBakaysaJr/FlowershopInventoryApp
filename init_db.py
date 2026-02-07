@@ -25,7 +25,8 @@ def initialize_database(db_path='inventory.db'):
             display_name TEXT NOT NULL,
             image_data BLOB,
             selling_price REAL DEFAULT 0.00,
-            active BOOLEAN DEFAULT 1
+            active BOOLEAN DEFAULT 1,
+            stock_on_hand INTEGER DEFAULT 0
         )
     ''')
 
@@ -48,7 +49,7 @@ def initialize_database(db_path='inventory.db'):
             product_id INTEGER,
             due_date DATE,
             qty_ordered INTEGER DEFAULT 0,
-            qty_made INTEGER DEFAULT 0,
+            qty_fulfilled INTEGER DEFAULT 0,
             FOREIGN KEY(product_id) REFERENCES products(product_id)
         )
     ''')
