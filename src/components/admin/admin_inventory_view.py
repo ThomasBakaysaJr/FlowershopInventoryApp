@@ -21,8 +21,35 @@ def render_stock_levels(raw_inventory_df):
     st.text("Please review any changes before saving.")    
 
     if not raw_inventory_df.empty:
+        # --- Filter UI ---
+        col_cat, col_sub = st.columns(2)
+        
+        with col_cat:
+            categories = sorted([str(c) for c in raw_inventory_df['category'].unique() if c])
+            selected_cats = st.multiselect("Category", options=categories, placeholder="Filter by Category")
+            
+        # Filter for sub-cats based on category selection
+        if selected_cats:
+            temp_df = raw_inventory_df[raw_inventory_df['category'].isin(selected_cats)]
+        else:
+            temp_df = raw_inventory_df
+            
+        with col_sub:
+            sub_categories = sorted([str(c) for c in temp_df['sub_category'].unique() if c])
+            selected_subs = st.multiselect("Sub-Category", options=sub_categories, placeholder="Filter by Sub-Category")
+            
+        # Apply Filters
+        filtered_df = raw_inventory_df.copy()
+        if selected_cats:
+            filtered_df = filtered_df[filtered_df['category'].isin(selected_cats)]
+        if selected_subs:
+            filtered_df = filtered_df[filtered_df['sub_category'].isin(selected_subs)]
+
+        # Calculate height to show all rows (35px per row + 38px header + buffer)
+        data_height = (len(filtered_df) * 35) + 38
+
         edited_df = st.data_editor(
-            raw_inventory_df,
+            filtered_df,
             column_config={
                 "item_id": st.column_config.NumberColumn("ID", disabled=True),
                 "name": st.column_config.TextColumn("Item Name", disabled=True),
@@ -33,6 +60,7 @@ def render_stock_levels(raw_inventory_df):
                 "unit_cost": st.column_config.NumberColumn("Cost ($)", min_value=0.0, step=0.01, format="$%.2f", required=True)
             },
             hide_index=True,
+            height=data_height,
             width="stretch",
             key="inventory_editor"
         )
