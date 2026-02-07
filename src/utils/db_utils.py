@@ -5,6 +5,7 @@ import logging
 from typing import Optional, List, Tuple, Union
 import io
 import csv
+from src.utils import utils
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,29 @@ def export_products_csv() -> str:
     finally:
         conn.close()
 
+def _get_local_image_bytes(product_name: str) -> Optional[bytes]:
+    """Helper to find and process a local image for a product from images/recipes."""
+    image_dir = os.path.join("images", "recipes")
+    if not os.path.exists(image_dir):
+        return None
+        
+    candidates = [
+        product_name,
+        product_name.replace(" ", "_"),
+        product_name.lower(),
+        product_name.lower().replace(" ", "_")
+    ]
+    
+    for name in candidates:
+        for ext in [".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"]:
+            path = os.path.join(image_dir, name + ext)
+            if os.path.exists(path):
+                try:
+                    return utils.process_image(path)
+                except Exception as e:
+                    logger.warning(f"Failed to process image {path}: {e}")
+    return None
+
 def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
     """Imports products/recipes. Format: Product, Price, Type, Ingredient, Qty."""
     conn = get_connection()
@@ -276,6 +300,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 cursor.execute("SELECT product_id FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
                 prod_res = cursor.fetchone()
                 
+                # Try to find local image
+                new_image_bytes = _get_local_image_bytes(product_name)
+                
                 if prod_res:
                     # UPDATE (Immutable Pattern)
                     p_id = prod_res[0]
@@ -286,12 +313,15 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     old_img = existing_data[0] if existing_data else None
                     old_stock = existing_data[1] if existing_data else 0
                     
+                    # Determine final image: New local image takes precedence, otherwise keep old
+                    final_img = new_image_bytes if new_image_bytes else old_img
+                    
                     # 2. Archive Old
                     cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (p_id,))
                     
                     # 3. Create New (New Price/Cat, Old Image/Stock)
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category) VALUES (?, ?, ?, 1, ?, ?)", 
-                                   (product_name, price, old_img, old_stock, cat))
+                                   (product_name, price, final_img, old_stock, cat))
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
@@ -299,8 +329,8 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
                 else:
                     # INSERT
-                    cursor.execute("INSERT INTO products (display_name, selling_price, category, active, stock_on_hand) VALUES (?, ?, ?, 1, 0)", 
-                                   (product_name, price, cat))
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand) VALUES (?, ?, ?, ?, 1, 0)", 
+                                   (product_name, price, new_image_bytes, cat))
                     new_id = cursor.lastrowid
                     for item_id, q in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
