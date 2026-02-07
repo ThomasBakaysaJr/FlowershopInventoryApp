@@ -247,6 +247,46 @@ def process_clipboard_update(text_data: str) -> Tuple[List[str], List[str]]:
             line = line.strip()
             if not line: continue
             
+            # Strategy 0: ID-based Update (Format: ID, Name..., bundle count X, count= Y, loss= Z)
+            if line[0].isdigit() and "count=" in line:
+                try:
+                    parts = [p.strip() for p in line.split(',')]
+                    item_id = int(parts[0])
+
+                    # make sure this item exists in inventory
+                    cursor.execute("SELECT 1 FROM inventory WHERE item_id = ?", (item_id,))
+                    if not cursor.fetchone():
+                        raise ValueError(f"Item ID {item_id} not found in inventory.")
+                    
+                    bundle_count = 1
+                    count_val = None
+                    loss_val = 0
+                    
+                    for part in parts:
+                        lower = part.lower()
+                        if "bundle_count=" in lower:
+                            val = lower.split("bundle_count=")[1].strip()
+                            if val: bundle_count = int(val)
+                        elif "count=" in lower:
+                            val = lower.split("count=")[1].strip()
+                            if val: count_val = int(val)
+                        elif "loss=" in lower:
+                            val = lower.split("loss=")[1].strip()
+                            if val: loss_val = int(val)
+                    
+                    if count_val is not None:
+                        final_count = max(0, (count_val * bundle_count) - loss_val)
+                        cursor.execute("UPDATE inventory SET count_on_hand = ? WHERE item_id = ?", (final_count, item_id))
+                        
+                        cursor.execute("SELECT name FROM inventory WHERE item_id = ?", (item_id,))
+                        res = cursor.fetchone()
+                        name = res[0] if res else f"Item {item_id}"
+                        updated_items.append(f"{name} (New Stock: {final_count})")
+                    continue
+                except Exception as e:
+                    errors.append(f"Error parsing ID line '{line}': {e}")
+                    continue
+
             name = None
             qty = None
 

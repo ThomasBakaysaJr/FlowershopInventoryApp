@@ -75,7 +75,7 @@ else:
             recipe_display.render_recipe_display(allow_edit=True)
 
         elif st.session_state.nav_design == "✏️ Design Studio":
-            admin.admin_design.render_design_tab(raw_inventory_df)
+            admin.design_dashboard.render_design_tab(raw_inventory_df)
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
