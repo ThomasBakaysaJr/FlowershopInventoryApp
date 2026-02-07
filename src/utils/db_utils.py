@@ -195,7 +195,7 @@ def export_products_csv() -> str:
         # We explicitly grab the 'category' column to support One-Offs
         query = """
         SELECT p.display_name as Product, p.selling_price as Price, p.category as Type,
-               i.name as Ingredient, r.qty_needed as Qty
+               i.item_id, i.name as Ingredient, r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -221,7 +221,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
         df = pd.read_csv(file_obj)
         df.columns = [c.lower().strip() for c in df.columns]
         
-        required = ['product', 'ingredient', 'qty']
+        required = ['product', 'qty']
         if not all(col in df.columns for col in required):
             return 0, [f"CSV missing required columns: {required}"]
             
@@ -239,19 +239,34 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 # 2. Build Recipe List
                 recipe_items = []
                 for _, row in group.iterrows():
-                    ing_name = str(row['ingredient']).strip()
                     qty = int(row['qty'])
+                    if qty <= 0: continue
                     
-                    if not ing_name or qty <= 0: continue
+                    item_id = None
                     
-                    # Find Ingredient ID
-                    cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
-                    res = cursor.fetchone()
-                    if not res:
-                        # Fail safe: Don't create products with missing ingredients
-                        raise ValueError(f"Ingredient '{ing_name}' not found in Inventory.")
+                    # Strategy 1: Lookup by ID (Preferred)
+                    if 'item_id' in row and pd.notna(row['item_id']):
+                        try:
+                            tid = int(row['item_id'])
+                            cursor.execute("SELECT item_id FROM inventory WHERE item_id = ?", (tid,))
+                            res = cursor.fetchone()
+                            if res: item_id = res[0]
+                        except (ValueError, TypeError): pass
                     
-                    recipe_items.append((res[0], qty))
+                    # Strategy 2: Lookup by Name (Fallback)
+                    if item_id is None and 'ingredient' in row:
+                        ing_name = str(row['ingredient']).strip()
+                        if ing_name:
+                            cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
+                            res = cursor.fetchone()
+                            if res: item_id = res[0]
+                    
+                    if item_id is None:
+                        ing_ref = row.get('ingredient', 'Unknown')
+                        id_ref = row.get('item_id', 'N/A')
+                        raise ValueError(f"Ingredient not found in Inventory (Name: '{ing_ref}', ID: {id_ref}).")
+                    
+                    recipe_items.append((item_id, qty))
                 
                 if not recipe_items:
                     errors.append(f"Skipped '{product_name}': No valid ingredients.")
