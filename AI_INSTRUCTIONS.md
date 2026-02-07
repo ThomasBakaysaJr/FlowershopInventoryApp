@@ -5,6 +5,7 @@
 * **Key Constraints:** * **Offline-First:** Must support "Clipboard Protocol" for text-based inventory updates (coolers have no Wi-Fi).
     * **Local Execution:** Runs locally on a host PC using Streamlit; no cloud dependencies.
     * **Data Integrity:** Use **Immutable Data** patterns for product history. Never overwrite active product recipes; always archive (soft delete) and create new versions.
+* **Operational Model:** **"Cooler Buffer" Model**. Production fills "Cooler Stock" (`stock_on_hand`). Logistics fulfills orders (`qty_fulfilled`) from that stock.
 
 ## 2. Tech Stack & Standards
 * **Language:** Python 3.10+
@@ -19,8 +20,10 @@
     1.  Set old `product_id` to `active = 0`.
     2.  Insert NEW product row with `active = 1`.
     3.  Link new recipe items to the NEW `product_id`.
+    4.  **Stock Rollover:** Carry over `stock_on_hand` to the new version unless explicitly reset.
 * **Logging:** All production actions must be recorded in `production_logs` with a timestamp.
 * **Inventory Units:** Inventory `count_on_hand` represents physical units (packs/bunches). Total stem count = `count_on_hand * bundle_count`.
+* **Fulfillment Logic:** `qty_ordered` is the demand. `qty_fulfilled` is the amount packed/shipped. `stock_on_hand` is the buffer.
 
 ## 4. Coding Style
 * **Functions:** Type-hint all arguments and return values.
@@ -32,7 +35,8 @@
 
 ## 5. UI/UX Patterns
 * **Workspace Structure:**
-    * *Upcoming Work:* Displays production goals (Weekly Goals).
+    * *Production Dashboard (Cooler View):* The "Make" view. Shows `stock_on_hand` vs. upcoming demand. Action: Build to Stock.
+    * *Daily Logistics:* The "Ship" view. Shows Daily Orders. Action: Fulfill from Stock (`qty_fulfilled`).
     * *Update Work:* Ad-hoc production logging and history.
 * **Buttons:** Action buttons (Make/Undo) should use `st.toast` for feedback and `st.rerun()` to refresh state after `0.25` seconds.
 * **Recipe Visibility:**
@@ -69,3 +73,7 @@
 
 ## 8. Business Logic Constraints
 * **Clipboard Symmetry:** The "Download Inventory" format must match the "Clipboard Parser" logic. Updates rely on `item_id` and `bundle_count` to calculate `(count * bundle_count) - loss`.
+
+## 9. Reporting & Analytics
+* **Success Metrics:** Performance is measured by `production_goals` data: `qty_ordered` (Demand) vs. `qty_fulfilled` (Success).
+* **End Report:** Should list goals and calculate fulfillment rates to track operational success.
