@@ -73,6 +73,10 @@
 
 ## 8. Business Logic Constraints
 * **Clipboard Symmetry:** The "Download Inventory" format must match the "Clipboard Parser" logic. Updates rely on `item_id` and `bundle_count` to calculate `(count * bundle_count) - loss`.
+* **Two-Step Production Flow:** Production and Fulfillment are decoupled.
+    1.  **Production:** `produce_stock()` consumes raw inventory and increments `stock_on_hand`.
+    2.  **Fulfillment:** `fulfill_goal()` consumes `stock_on_hand` and increments `qty_fulfilled`.
+    *   *Constraint:* Goals cannot be fulfilled if `stock_on_hand <= 0`.
 
 ## 9. Reporting & Analytics
 * **Success Metrics:** Performance is measured by `production_goals` data: `qty_ordered` (Demand) vs. `qty_fulfilled` (Success).

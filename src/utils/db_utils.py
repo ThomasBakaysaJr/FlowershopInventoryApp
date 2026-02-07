@@ -20,7 +20,7 @@ def get_weekly_production_goals() -> pd.DataFrame:
     try:
         conn = get_connection()
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         """
@@ -213,6 +213,85 @@ def undo_production(goal_id: int) -> bool:
         return False
     except sqlite3.Error as e:
         logger.error(f"undo_production: Database error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def fulfill_goal(goal_id: int) -> bool:
+    """Decrements stock_on_hand and increments qty_fulfilled for a goal (Cooler -> Order)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # Check stock and get product_id
+        cursor.execute("""
+            SELECT p.stock_on_hand, p.product_id 
+            FROM production_goals pg
+            JOIN products p ON pg.product_id = p.product_id
+            WHERE pg.goal_id = ?
+        """, (goal_id,))
+        res = cursor.fetchone()
+        
+        if not res: return False
+        stock, p_id = res
+        
+        if stock <= 0:
+            logger.warning(f"fulfill_goal: Attempted to fulfill goal {goal_id} with 0 stock.")
+            return False
+            
+        # 1. Update Product Stock (Remove from Cooler)
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand - 1 WHERE product_id = ?", (p_id,))
+        
+        # 2. Update Goal (Mark as Fulfilled)
+        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + 1 WHERE goal_id = ?", (goal_id,))
+        
+        # 3. Log it
+        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"fulfill_goal: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def undo_fulfillment(goal_id: int) -> bool:
+    """Reverts a fulfillment: increments stock_on_hand, decrements qty_fulfilled."""
+    # This is functionally similar to undo_production but restores to STOCK, not INVENTORY.
+    # Since undo_production restores to INVENTORY (BOM), we need this specific function for the Cooler Model.
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # Get product_id
+        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        if not res: return False
+        p_id = res[0]
+        
+        # Find latest log for this goal
+        cursor.execute("SELECT log_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1", (goal_id,))
+        log_res = cursor.fetchone()
+        
+        if not log_res: return False
+        log_id = log_res[0]
+        
+        # 1. Delete Log
+        cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
+        
+        # 2. Revert Goal
+        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?", (goal_id,))
+        
+        # 3. Return to Stock (Put back in Cooler)
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?", (p_id,))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"undo_fulfillment: {e}")
         conn.rollback()
         return False
     finally:
@@ -525,5 +604,107 @@ def get_active_and_scheduled_products(start_date, end_date) -> pd.DataFrame:
     except Exception as e:
         logger.error(f"get_active_and_scheduled_products: {e}")
         return pd.DataFrame()
+    finally:
+        conn.close()
+
+def get_production_requirements(start_date, end_date) -> pd.DataFrame:
+    """Fetches products with their current stock and aggregated requirements for the date range."""
+    conn = get_connection()
+    try:
+        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
+        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        
+        query = """
+        SELECT 
+            p.product_id, 
+            p.display_name as Product, 
+            p.image_data, 
+            p.active, 
+            MAX(p.stock_on_hand) as stock_on_hand,
+            COALESCE(SUM(pg.qty_ordered), 0) as required_qty
+        FROM products p
+        LEFT JOIN production_goals pg ON p.product_id = pg.product_id AND pg.due_date BETWEEN ? AND ?
+        WHERE p.active = 1 OR pg.goal_id IS NOT NULL
+        GROUP BY p.product_id
+        ORDER BY p.display_name ASC
+        """
+        df = pd.read_sql_query(query, conn, params=(s_date, e_date))
+        return df
+    except Exception as e:
+        logger.error(f"get_production_requirements: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def produce_stock(product_id: int) -> bool:
+    """Increments stock_on_hand and deducts inventory (BOM). Logs with goal_id=NULL."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # 1. Update Product Stock
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?", (product_id,))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"produce_stock: No product found with ID {product_id}")
+            return False
+        
+        # 2. Log it (goal_id is NULL for stock production)
+        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (NULL, ?)", (product_id,))
+        
+        # 3. Deduct Inventory
+        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (product_id,))
+        recipe_items = cursor.fetchall()
+        
+        for i_id, qty in recipe_items:
+            cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+            
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"produce_stock: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def undo_stock_production(product_id: int) -> bool:
+    """Decrements stock_on_hand and restores inventory. Reverts last log where goal_id is NULL."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # Find latest log for this product with NULL goal_id (meaning it was a stock production)
+        cursor.execute("SELECT log_id FROM production_logs WHERE product_id = ? AND goal_id IS NULL ORDER BY log_id DESC LIMIT 1", (product_id,))
+        res = cursor.fetchone()
+        
+        if not res:
+            return False
+        
+        log_id = res[0]
+        
+        # 1. Delete Log
+        cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
+        
+        # 2. Decrement Stock
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand - 1 WHERE product_id = ?", (product_id,))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"undo_stock_production: No product found with ID {product_id}")
+            return False
+
+        # 3. Restore Inventory
+        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (product_id,))
+        recipe_items = cursor.fetchall()
+        
+        for i_id, qty in recipe_items:
+            cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?", (qty, i_id))
+            
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"undo_stock_production: {e}")
+        conn.rollback()
+        return False
     finally:
         conn.close()

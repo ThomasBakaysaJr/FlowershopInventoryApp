@@ -1,7 +1,16 @@
 import streamlit as st
 import pandas as pd
-import time
 from src.utils import db_utils
+
+def handle_log_production(goal_id, product_name):
+    # Changed to Fulfill from Stock logic
+    if db_utils.fulfill_goal(int(goal_id)):
+        st.toast(f"Packed 1 {product_name}!", icon="📦")
+
+def handle_undo_production(goal_id, product_name):
+    # Changed to Undo Fulfillment logic
+    if db_utils.undo_fulfillment(int(goal_id)):
+        st.toast(f"Returned 1 {product_name} to Cooler", icon="↩️")
 
 def render():
     st.subheader("Production Goals")
@@ -64,6 +73,7 @@ def render_grid(week_data, key_suffix=""):
             if i + j < len(week_data):
                 row = week_data.iloc[i + j]
                 needed = row['qty_ordered'] - row['qty_fulfilled']
+                stock = row['stock_on_hand']
                 
                 with grid_cols[j]:
                     with st.container(border=True):
@@ -75,12 +85,19 @@ def render_grid(week_data, key_suffix=""):
                                 st.image(row['image_data'], width="stretch")
                         
                         with col_add:
-                            btn_label = "✅" if needed <= 0 else "➕"
-                            if st.button(btn_label, key=f"btn_{row['goal_id']}", disabled=(needed <= 0), width="stretch"):
-                                if db_utils.log_production(int(row['goal_id'])):
-                                    st.toast(f"Logged 1 {row['Product']}!", icon="🌸")                                                
-                                    time.sleep(0.25)
-                                    st.rerun()
+                            # Button Logic:
+                            # - Checkmark if done.
+                            # - Box (Pack) if needed > 0 AND stock > 0.
+                            # - Disabled/Warning if needed > 0 but NO stock.
+                            btn_label = "✅" if needed <= 0 else "📦"
+                            st.button(
+                                btn_label, 
+                                key=f"btn_{row['goal_id']}", 
+                                disabled=(needed <= 0 or stock <= 0), 
+                                use_container_width=True,
+                                on_click=handle_log_production,
+                                args=(row['goal_id'], row['Product'])
+                            )
                         
                         with col_name:
                             display_name = f"[{row['product_id']}] {row['Product']}"
@@ -91,14 +108,21 @@ def render_grid(week_data, key_suffix=""):
                         
                         with col_qty:
                             st.markdown(f"### **{needed}** left" if needed > 0 else "Done")
+                            if needed > 0:
+                                if stock > 0:
+                                    st.caption(f"In Cooler: {stock}")
+                                else:
+                                    st.caption(":red[Empty Cooler]")
 
                         with col_undo:
                             # Only allow undo if something has been made this week
                             can_undo = row['qty_fulfilled'] > 0
                             with st.popover("➖", disabled=not can_undo, width="stretch", help="Undo last production"):
                                 st.write("⚠️ **Confirm Undo?**")
-                                if st.button("Confirm", key=f"undo_{row['goal_id']}", width="stretch"):
-                                    if db_utils.undo_production(int(row['goal_id'])):
-                                        st.toast(f"Undid 1 {row['Product']}", icon="↩️")
-                                        time.sleep(0.25)
-                                        st.rerun()
+                                st.button(
+                                    "Confirm", 
+                                    key=f"undo_{row['goal_id']}", 
+                                    use_container_width=True,
+                                    on_click=handle_undo_production,
+                                    args=(row['goal_id'], row['Product'])
+                                )

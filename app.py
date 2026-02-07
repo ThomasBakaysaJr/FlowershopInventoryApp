@@ -5,6 +5,7 @@ import time
 import logging
 from src.utils import db_utils
 from src.components import workspace_dashboard, admin, recipe_display
+from src.components.workspace_dashboard import production_dashboard
 from src.components.admin import admin_inventory_view, production_viewer, forecaster
 
 
@@ -57,16 +58,19 @@ else:
 
     if st.session_state.nav_main == "🛠️ Workspace":
         if "nav_workspace" not in st.session_state:
-            st.session_state.nav_workspace = "📅 Upcoming Work"
+            st.session_state.nav_workspace = "📦 Production Dashboard"
 
         st.segmented_control(
             "Workspace Navigation",
-            options=["📅 Upcoming Work", "🖩 Calculator"],
+            options=["📦 Production Dashboard", "📅 Upcoming Work", "🖩 Calculator"],
             key="nav_workspace",
             label_visibility="collapsed"
         )
 
-        if st.session_state.nav_workspace == "📅 Upcoming Work":
+        if st.session_state.nav_workspace == "📦 Production Dashboard":
+            production_dashboard.render()
+
+        elif st.session_state.nav_workspace == "📅 Upcoming Work":
             workspace_dashboard.dashboard.render_designer_dashboard()
             
         elif st.session_state.nav_workspace == "🖩 Calculator":
