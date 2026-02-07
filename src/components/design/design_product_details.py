@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-from src.utils import db_utils
+from src.utils import db_utils, settings_utils
 
 def render(container, inventory_df):
     """Renders the Product Details form (Name, Image, Pricing) in the provided container."""
@@ -95,16 +95,13 @@ def render(container, inventory_df):
         # --- COSTING FORMULA (HIGHLIGHTED FOR ADJUSTMENT) ---
         st.subheader("3. Pricing")
         
-        # >>> FORMULA VARIABLES <<<
-        LABOR_RATE = 0.20  # 20% of COGS
-        MARKUP = 3.5       # 3.5x Markup on Total Cost
-        # >>> END FORMULA <<<
+        # Load Settings
+        settings = settings_utils.load_settings()
 
         # Calculate Costs
         cogs = sum(item['cost'] * item['qty'] for item in st.session_state.new_recipe)
-        labor_cost = cogs * LABOR_RATE
-        total_cost = cogs + labor_cost
-        suggested_price = total_cost * MARKUP
+        
+        suggested_price, total_cost, breakdown, markup_val = settings_utils.calculate_price(cogs, settings)
 
         # Auto-update input when recipe changes
         if 'last_suggested_price' not in st.session_state:
@@ -115,11 +112,12 @@ def render(container, inventory_df):
             st.session_state.last_suggested_price = suggested_price
 
         st.markdown(f"**Cost of Goods (COGS):** `${cogs:.2f}`")
-        st.markdown(f"**Labor ({int(LABOR_RATE*100)}%):** `${labor_cost:.2f}`")
+        for line in breakdown:
+            st.markdown(f"**{line}**")
         st.markdown(f"**Total Cost:** `${total_cost:.2f}`")
         
         st.markdown(f"### **Formula Suggested:** `${suggested_price:.2f}`")
-        st.caption(f"(Based on {MARKUP}x markup)")
+        st.caption(f"(Based on {markup_val}x markup)")
         
         st.number_input("Final Selling Price ($)", min_value=0.0, step=1.0, key="final_price_input")
         st.checkbox("Rollover Stock Count?", value=True, key="rollover_stock_input", help="If checked, existing stock count will be moved to the new version.")

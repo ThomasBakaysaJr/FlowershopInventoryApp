@@ -12,6 +12,9 @@ test_*.db
 # Assets
 images/test/
 
+# Settings
+settings.json
+
 # Python & Tools
 __pycache__/
 .pytest_cache/

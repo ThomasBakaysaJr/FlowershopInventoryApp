@@ -6,7 +6,7 @@ import logging
 from src.utils import db_utils
 from src.components import workspace_dashboard, admin, recipe_display
 from src.components.workspace_dashboard import production_dashboard
-from src.components.admin import admin_inventory_view, production_viewer, forecaster
+from src.components.admin import admin_inventory_view, production_viewer, forecaster, admin_settings
 
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
@@ -98,7 +98,7 @@ else:
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         
-        valid_admin = ["📊 Stock Levels", "📅 Production Manager", "🔮 Forecaster", "📋 EOD Inventory Count", "📦 Bulk Operations"]
+        valid_admin = ["📊 Stock Levels", "📅 Production Manager", "🔮 Forecaster", "📋 EOD Inventory Count", "📦 Bulk Operations", "⚙️ Settings"]
         if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
 
@@ -123,3 +123,6 @@ else:
             
         elif st.session_state.nav_admin == "📦 Bulk Operations":
             admin.admin_tools.render_bulk_operations(raw_inventory_df)
+            
+        elif st.session_state.nav_admin == "⚙️ Settings":
+            admin_settings.render_settings_panel()
