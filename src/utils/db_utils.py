@@ -398,3 +398,18 @@ def update_inventory_cost(item_id: int, new_cost: float) -> bool:
         return False
     finally:
         conn.close()
+
+def update_item_details(item_id, count, cost):
+    """Updates both count and cost for an inventory item."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE inventory SET count_on_hand = ?, unit_cost = ? WHERE item_id = ?", (count, cost, item_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_item_details: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
