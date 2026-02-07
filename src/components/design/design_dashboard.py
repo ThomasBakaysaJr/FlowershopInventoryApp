@@ -4,8 +4,14 @@ from src.utils import db_utils, utils
 from src.components import design
 
 def render_design_tab(inventory_df):
-    st.header("🌸 New Arrangement Designer")
-    st.caption("Build new products by selecting items from your inventory.")
+    col_header, col_reset = st.columns([3, 1])
+    with col_header:
+        st.header("🌸 New Arrangement Designer")
+        st.caption("Build new products by selecting items from your inventory.")
+    with col_reset:
+        if st.button("⚠️ Reset Form", help="Clear all fields and start over", type="secondary", use_container_width=True):
+            st.session_state.should_clear_input = True
+            st.rerun()
 
     # Initialize uploader key if not present (Fix for sticky images)
     if 'uploader_key' not in st.session_state:
@@ -22,6 +28,12 @@ def render_design_tab(inventory_df):
         st.session_state.pop('editing_product_original_name', None)
         st.session_state.pop('editing_product_id', None)
         st.session_state.new_recipe = []
+        
+        # Reset Product Type and Goal inputs
+        st.session_state.prod_type_input = "Standard"
+        st.session_state.create_goal_input = True
+        st.session_state.pop('goal_date_input', None)
+        st.session_state.pop('goal_qty_input', None)
         
         # Clear residual state
         st.session_state.uploader_key += 1
@@ -80,7 +92,7 @@ def render_design_tab(inventory_df):
     col_details, col_builder = st.columns([1, 1.5], gap="large")
 
     # 1. Render Product Details (Left Column)
-    uploaded_file, save_clicked, prod_type = design.design_product_details.render(col_details, inventory_df)
+    uploaded_file, save_clicked, prod_type, goal_date, goal_qty = design.design_product_details.render(col_details, inventory_df)
     
     # 2. Render Recipe Builder (Right Column)
     design.design_recipe_builder.render(col_builder, inventory_df)
@@ -94,7 +106,7 @@ def render_design_tab(inventory_df):
             rollover_stock = st.session_state.get("rollover_stock_input", True)
             migrate_goals = st.session_state.get("migrate_goals_input", True)
             
-            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type, migrate_goals)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type, migrate_goals, goal_date, goal_qty)
 
         # 4. Confirmation Dialog for Overwrite
         design.design_save_logic.render_overwrite_dialog(
@@ -104,5 +116,7 @@ def render_design_tab(inventory_df):
             st.session_state.new_recipe,
             st.session_state.get("rollover_stock_input", True),
             prod_type,
-            st.session_state.get("migrate_goals_input", True)
+            st.session_state.get("migrate_goals_input", True),
+            goal_date,
+            goal_qty
         )

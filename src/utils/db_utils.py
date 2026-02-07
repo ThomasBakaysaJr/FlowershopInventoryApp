@@ -312,7 +312,9 @@ def update_product_recipe(
     new_price: Optional[float] = None,
     rollover_stock: bool = True,
     category: str = "Standard",
-    migrate_goals: bool = False
+    migrate_goals: bool = False,
+    goal_date: Optional[str] = None,
+    goal_qty: int = 0
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
@@ -358,6 +360,13 @@ def update_product_recipe(
             cursor.execute("UPDATE production_goals SET product_id = ? WHERE product_id = ? AND qty_fulfilled < qty_ordered", (new_p_id, current_product_id))
             logger.info(f"update_product_recipe: Migrated unfulfilled goals from {current_product_id} to {new_p_id}")
         
+        # 7. Add New Goal (if requested)
+        if goal_date and goal_qty > 0:
+            d_str = goal_date.strftime('%Y-%m-%d') if hasattr(goal_date, 'strftime') else str(goal_date)
+            cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)", 
+                           (new_p_id, d_str, goal_qty))
+            logger.info(f"update_product_recipe: Added new goal for '{final_name}' (Qty: {goal_qty}, Due: {d_str})")
+
         logger.info(f"update_product_recipe: Archived old version and created new version (ID: {new_p_id}) for '{final_name}'")
         conn.commit()
         return True
@@ -662,7 +671,9 @@ def create_new_product(
     selling_price: float, 
     image_bytes: Optional[bytes], 
     recipe_items: List[Tuple[int, int]],
-    category: str = "Standard"
+    category: str = "Standard",
+    goal_date: Optional[str] = None,
+    goal_qty: int = 0
 ) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
     conn = get_connection()
@@ -678,6 +689,13 @@ def create_new_product(
             cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)",
                            (product_id, item_id, qty))
         
+        # 3. Insert Goal (if provided)
+        if goal_date and goal_qty > 0:
+            d_str = goal_date.strftime('%Y-%m-%d') if hasattr(goal_date, 'strftime') else str(goal_date)
+            cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)", 
+                           (product_id, d_str, goal_qty))
+            logger.info(f"create_new_product: Added initial goal for '{name}' (Qty: {goal_qty}, Due: {d_str})")
+
         logger.info(f"create_new_product: Created new product '{name}' (ID: {product_id})")
         conn.commit()
         return True
