@@ -4,7 +4,7 @@ import os
 import time
 import logging
 from src.utils import db_utils
-from src.components import designer_dashboard, admin, recipe_display
+from src.components import workspace_dashboard, admin, recipe_display
 
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
@@ -35,34 +35,57 @@ else:
     if "pending_nav_admin" in st.session_state:
         st.session_state.nav_admin = st.session_state.pop("pending_nav_admin")
 
+    if "pending_nav_design" in st.session_state:
+        st.session_state.nav_design = st.session_state.pop("pending_nav_design")
+
     # Auto-navigate to Design Studio if an edit is triggered
     if "design_edit_name" in st.session_state:
-        st.session_state.nav_main = "⚙️ Admin Space"
-        st.session_state.nav_admin = "✏️ Design Studio"
+        st.session_state.nav_main = "🎨 Designer Space"
+        st.session_state.nav_design = "✏️ Design Studio"
 
     # Initialize navigation state
     if "nav_main" not in st.session_state:
-        st.session_state.nav_main = "🎨 Designer Space"
+        st.session_state.nav_main = "🛠️ Workspace"
 
     st.segmented_control(
         "Main Navigation",
-        options=["🎨 Designer Space", "⚙️ Admin Space"],
+        options=["🛠️ Workspace", "🎨 Designer Space", "⚙️ Admin Space"],
         key="nav_main",
         label_visibility="collapsed"
     )
 
-    if st.session_state.nav_main == "🎨 Designer Space":
-        designer_dashboard.dashboard.render_designer_dashboard()
+    if st.session_state.nav_main == "🛠️ Workspace":
+        workspace_dashboard.dashboard.render_designer_dashboard()
+
+    elif st.session_state.nav_main == "🎨 Designer Space":
+        raw_inventory_df = db_utils.get_inventory()
+        
+        if "nav_design" not in st.session_state:
+            st.session_state.nav_design = "📖 Recipe Book"
+
+        st.segmented_control(
+            "Design Navigation",
+            options=["📖 Recipe Book", "✏️ Design Studio"],
+            key="nav_design",
+            label_visibility="collapsed"
+        )
+        
+        if st.session_state.nav_design == "📖 Recipe Book":
+            recipe_display.render_recipe_display(allow_edit=True)
+
+        elif st.session_state.nav_design == "✏️ Design Studio":
+            admin.admin_design.render_design_tab(raw_inventory_df)
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         
-        if "nav_admin" not in st.session_state:
+        valid_admin = ["📊 Stock Levels", "🛠️ Admin Tools"]
+        if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
 
         st.segmented_control(
             "Admin Navigation",
-            options=["📊 Stock Levels", "📖 Recipe Book", "✏️ Design Studio", "🛠️ Admin Tools"],
+            options=valid_admin,
             key="nav_admin",
             label_visibility="collapsed"
         )
@@ -106,11 +129,5 @@ else:
             else:
                 st.info("Inventory is currently empty.")
         
-        elif st.session_state.nav_admin == "📖 Recipe Book":
-            recipe_display.render_recipe_display(allow_edit=True)
-
-        elif st.session_state.nav_admin == "✏️ Design Studio":
-            admin.admin_design.render_design_tab(raw_inventory_df)
-
         elif st.session_state.nav_admin == "🛠️ Admin Tools":
             admin.admin_tools.render_admin_tools(raw_inventory_df)

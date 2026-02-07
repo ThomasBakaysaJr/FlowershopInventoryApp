@@ -1,7 +1,7 @@
 # packages
 from . import admin as admin
 from . import design as design
-from . import designer_dashboard as designer_dashboard
+from . import workspace_dashboard as workspace_dashboard
 
 # individual files
 from . import recipe_display as  recipe_display

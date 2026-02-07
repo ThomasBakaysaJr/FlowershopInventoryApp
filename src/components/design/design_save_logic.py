@@ -30,7 +30,7 @@ def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=
         
         # Auto-navigate to Recipe Book
         # Use pending state to avoid StreamlitAPIException (modifying key after widget instantiation)
-        st.session_state.pending_nav_admin = "📖 Recipe Book"
+        st.session_state.pending_nav_design = "📖 Recipe Book"
         
         st.rerun()
     else:

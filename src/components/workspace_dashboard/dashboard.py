@@ -3,7 +3,6 @@ from src.components import recipe_display
 from . import dashboard_weekly
 
 def render_designer_dashboard():
-    st.header("This Week's Work")
     dashboard_weekly.render()
 
     st.divider()
