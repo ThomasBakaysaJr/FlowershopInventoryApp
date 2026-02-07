@@ -82,9 +82,25 @@ def render_production_viewer():
                     
                     if new_val != row['qty_ordered']:
                         if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity"):
-                            if db_utils.update_goal_quantity(row['goal_id'], new_val):
-                                st.toast(f"Updated goal to {new_val}!")
+                            result = db_utils.update_goal_quantity(row['goal_id'], new_val)
+                            if result["success"]:
+                                if result["overage"] > 0:
+                                    st.session_state[f"overage_goal_{row['goal_id']}"] = result["overage"]
+                                    st.toast(f"Updated target. {result['overage']} items are now excess.")
+                                else:
+                                    st.toast(f"Updated goal to {new_val}!")
                                 st.rerun()
+                    
+                    # Check for pending overage resolution
+                    overage_key = f"overage_goal_{row['goal_id']}"
+                    if overage_key in st.session_state:
+                        overage_amt = st.session_state[overage_key]
+                        st.warning(f"⚠️ Excess: {overage_amt}")
+                        if st.button(f"Move {overage_amt} to Stock", key=f"rel_{row['goal_id']}"):
+                            db_utils.release_overage_to_stock(row['goal_id'], overage_amt)
+                            del st.session_state[overage_key]
+                            st.success("Moved to stock!")
+                            st.rerun()
         
                 with c5:
                     if st.button("❌", key=f"del_goal_{row['goal_id']}", help="Delete Goal (Returns items to Stock)"):

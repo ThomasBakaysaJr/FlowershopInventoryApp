@@ -995,16 +995,63 @@ def delete_production_goal(goal_id: int) -> bool:
     finally:
         conn.close()
 
-def update_goal_quantity(goal_id: int, new_qty: int) -> bool:
-    """Updates the target quantity for an existing goal."""
+def update_goal_quantity(goal_id: int, new_qty: int) -> dict:
+    """Updates the target quantity and reports if we are now over-fulfilled."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        
+        # Check current progress
+        cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        current_made = res[0] if res else 0
+        
         cursor.execute("UPDATE production_goals SET qty_ordered = ? WHERE goal_id = ?", (new_qty, goal_id))
+        conn.commit()
+        
+        return {
+            "success": True, 
+            "overage": max(0, current_made - new_qty)
+        }
+    except sqlite3.Error as e:
+        logger.error(f"update_goal_quantity: {e}")
+        return {"success": False, "overage": 0}
+    finally:
+        conn.close()
+
+def release_overage_to_stock(goal_id: int, qty_to_release: int) -> bool:
+    """Moves items from 'Goal Progress' to 'General Stock' (Cooler)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # 1. Get Product ID
+        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
+        p_id = cursor.fetchone()[0]
+        
+        # 2. Decrease Goal Progress
+        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled - ? WHERE goal_id = ?", (qty_to_release, goal_id))
+        
+        # 3. Increase General Stock
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?", (qty_to_release, p_id))
+        
+        # 4. Detach Logs (optional but good for history)
+        # We find the N most recent logs for this goal and set goal_id = NULL
+        cursor.execute("""
+            UPDATE production_logs 
+            SET goal_id = NULL 
+            WHERE log_id IN (
+                SELECT log_id FROM production_logs 
+                WHERE goal_id = ? 
+                ORDER BY log_id DESC 
+                LIMIT ?
+            )
+        """, (goal_id, qty_to_release))
+        
         conn.commit()
         return True
     except sqlite3.Error as e:
-        logger.error(f"update_goal_quantity: {e}")
+        logger.error(f"release_overage_to_stock: {e}")
         return False
     finally:
         conn.close()
