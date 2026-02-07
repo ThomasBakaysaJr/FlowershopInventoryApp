@@ -107,7 +107,8 @@ def update_product_recipe(
     recipe_items: List[Tuple[int, int]], 
     image_bytes: Optional[bytes] = None, 
     new_price: Optional[float] = None,
-    rollover_stock: bool = True
+    rollover_stock: bool = True,
+    category: str = "Standard"
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
@@ -139,8 +140,8 @@ def update_product_recipe(
         
         # 4. Create new product version
         final_stock = current_stock if rollover_stock else 0
-        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand) VALUES (?, ?, ?, 1, ?)",
-                       (final_name, final_price, final_image, final_stock))
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category) VALUES (?, ?, ?, 1, ?, ?)",
+                       (final_name, final_price, final_image, final_stock, category))
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
@@ -224,9 +225,9 @@ def fulfill_goal(goal_id: int) -> bool:
     try:
         cursor = conn.cursor()
         
-        # Check stock and get product_id
+        # Check stock, product_id, and category
         cursor.execute("""
-            SELECT p.stock_on_hand, p.product_id 
+            SELECT p.stock_on_hand, p.product_id, p.category
             FROM production_goals pg
             JOIN products p ON pg.product_id = p.product_id
             WHERE pg.goal_id = ?
@@ -234,7 +235,7 @@ def fulfill_goal(goal_id: int) -> bool:
         res = cursor.fetchone()
         
         if not res: return False
-        stock, p_id = res
+        stock, p_id, category = res
         
         if stock <= 0:
             logger.warning(f"fulfill_goal: Attempted to fulfill goal {goal_id} with 0 stock.")
@@ -249,6 +250,20 @@ def fulfill_goal(goal_id: int) -> bool:
         # 3. Log it
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
         
+        # 4. Auto-Archive One-Offs if complete
+        if category == 'One-Off':
+            # Check if stock is depleted
+            # Note: We just decremented stock, so we check the new value (stock - 1)
+            new_stock = stock - 1
+            
+            # Check for any remaining unfulfilled goals
+            cursor.execute("SELECT COUNT(*) FROM production_goals WHERE product_id = ? AND qty_fulfilled < qty_ordered", (p_id,))
+            pending_goals = cursor.fetchone()[0]
+            
+            if new_stock <= 0 and pending_goals == 0:
+                logger.info(f"fulfill_goal: Auto-archiving completed One-Off product {p_id}")
+                cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (p_id,))
+
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -302,7 +317,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, r.item_id, i.name as Ingredient, r.qty_needed as Qty
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, r.item_id, i.name as Ingredient, r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -437,15 +452,16 @@ def create_new_product(
     name: str, 
     selling_price: float, 
     image_bytes: Optional[bytes], 
-    recipe_items: List[Tuple[int, int]]
+    recipe_items: List[Tuple[int, int]],
+    category: str = "Standard"
 ) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         # 1. Insert Product
-        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active) VALUES (?, ?, ?, 1)",
-                       (name, selling_price, image_bytes))
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, category) VALUES (?, ?, ?, 1, ?)",
+                       (name, selling_price, image_bytes, category))
         product_id = cursor.lastrowid
         
         # 2. Insert Recipe Items
@@ -497,12 +513,12 @@ def get_product_details(product_name: str) -> Optional[dict]:
     try:
         cursor = conn.cursor()
         # Get Product Info
-        cursor.execute("SELECT product_id, selling_price, image_data, display_name, stock_on_hand FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        cursor.execute("SELECT product_id, selling_price, image_data, display_name, stock_on_hand, category FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
         res = cursor.fetchone()
         if not res:
             return None
         
-        p_id, price, img, db_name, stock = res
+        p_id, price, img, db_name, stock, category = res
         
         # Get Recipe Items
         cursor.execute("""
@@ -520,7 +536,8 @@ def get_product_details(product_name: str) -> Optional[dict]:
             "price": price,
             "image_data": img,
             "recipe": recipe_items,
-            "stock_on_hand": stock
+            "stock_on_hand": stock,
+            "category": category
         }
     except Exception as e:
         logger.error(f"get_product_details: Error: {e}")

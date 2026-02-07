@@ -1,7 +1,7 @@
 import streamlit as st
 from src.utils import db_utils, utils
 
-def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=None, rollover_stock=True):
+def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=None, rollover_stock=True, category="Standard"):
     """Core logic to save or update a product. Returns True if successful."""
     img_bytes = None
     if uploaded_file:
@@ -15,12 +15,12 @@ def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=
     success = False
     if target_id:
         # Update existing (or overwrite target)
-        if db_utils.update_product_recipe(target_id, prod_name, db_items, img_bytes, final_price, rollover_stock):
+        if db_utils.update_product_recipe(target_id, prod_name, db_items, img_bytes, final_price, rollover_stock, category):
             st.toast(f"Updated '{prod_name}'!", icon="💾")
             success = True
     else:
         # Create new
-        if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
+        if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items, category):
             st.toast(f"Successfully created '{prod_name}'!", icon="✨")
             success = True
     
@@ -38,7 +38,7 @@ def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=
     
     return success
 
-def handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock=True):
+def handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock=True, category="Standard"):
     """Handles the initial save button click, checking for collisions."""
     if not prod_name or not recipe_items:
         st.warning("Please provide a name and at least one ingredient.")
@@ -68,12 +68,12 @@ def handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollo
         st.rerun()
     elif original_id:
         # Standard Update
-        execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=original_id, rollover_stock=rollover_stock)
+        execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=original_id, rollover_stock=rollover_stock, category=category)
     else:
         # Standard Create
-        execute_save(prod_name, final_price, uploaded_file, recipe_items)
+        execute_save(prod_name, final_price, uploaded_file, recipe_items, category=category)
 
-def render_overwrite_dialog(prod_name, final_price, uploaded_file, recipe_items, rollover_stock=True):
+def render_overwrite_dialog(prod_name, final_price, uploaded_file, recipe_items, rollover_stock=True, category="Standard"):
     """Renders the confirmation dialog if collision detected."""
     if st.session_state.get('confirm_overwrite'):
         st.warning(f"Product '{prod_name}' already exists. Overwrite?")
@@ -90,7 +90,7 @@ def render_overwrite_dialog(prod_name, final_price, uploaded_file, recipe_items,
                         target_id = details['product_id']
                 
                 # Execute with the resolved target_id
-                execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=target_id, rollover_stock=rollover_stock)
+                execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=target_id, rollover_stock=rollover_stock, category=category)
                 
         with col_no:
             if st.button("Cancel"):

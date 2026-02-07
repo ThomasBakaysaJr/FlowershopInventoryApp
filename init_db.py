@@ -26,7 +26,8 @@ def initialize_database(db_path='inventory.db'):
             image_data BLOB,
             selling_price REAL DEFAULT 0.00,
             active BOOLEAN DEFAULT 1,
-            stock_on_hand INTEGER DEFAULT 0
+            stock_on_hand INTEGER DEFAULT 0,
+            category TEXT DEFAULT 'Standard'
         )
     ''')
 

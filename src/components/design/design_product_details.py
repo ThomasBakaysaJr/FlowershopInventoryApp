@@ -5,6 +5,7 @@ def render(container, inventory_df):
     """Renders the Product Details form (Name, Image, Pricing) in the provided container."""
     with container:
         st.subheader("1. Product Details")
+        prod_type = st.radio("Product Type", ["Standard", "One-Off"], horizontal=True, help="One-Off items auto-archive when finished.", key="prod_type_input")
         prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze", key="prod_name_input")
         
         # --- AUTO-LOAD LOGIC ---
@@ -40,6 +41,10 @@ def render(container, inventory_df):
                 # Set Editing Context
                 st.session_state.editing_product_id = details['product_id']
                 st.session_state.editing_product_original_name = details['name']
+                
+                # Load Category
+                if details.get('category'):
+                    st.session_state.prod_type_input = details['category']
                 
                 st.toast(f"Loaded recipe for '{details['name']}'", icon="📖")
             
@@ -93,4 +98,4 @@ def render(container, inventory_df):
 
         save_clicked = st.button("💾 Save / Update Product", type="primary", width="stretch")
         
-        return uploaded_file, save_clicked
+        return uploaded_file, save_clicked, prod_type

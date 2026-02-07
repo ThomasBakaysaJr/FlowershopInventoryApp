@@ -80,7 +80,7 @@ def render_design_tab(inventory_df):
     col_details, col_builder = st.columns([1, 1.5], gap="large")
 
     # 1. Render Product Details (Left Column)
-    uploaded_file, save_clicked = design.design_product_details.render(col_details, inventory_df)
+    uploaded_file, save_clicked, prod_type = design.design_product_details.render(col_details, inventory_df)
     
     # 2. Render Recipe Builder (Right Column)
     design.design_recipe_builder.render(col_builder, inventory_df)
@@ -93,7 +93,7 @@ def render_design_tab(inventory_df):
             recipe_items = st.session_state.new_recipe
             rollover_stock = st.session_state.get("rollover_stock_input", True)
             
-            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type)
 
         # 4. Confirmation Dialog for Overwrite
         design.design_save_logic.render_overwrite_dialog(
@@ -101,5 +101,6 @@ def render_design_tab(inventory_df):
             st.session_state.get("final_price_input", 0.0),
             uploaded_file,
             st.session_state.new_recipe,
-            st.session_state.get("rollover_stock_input", True)
+            st.session_state.get("rollover_stock_input", True),
+            prod_type
         )

@@ -8,10 +8,14 @@ def render_single_recipe(prod_row, full_df, allow_edit):
     product_name = prod_row['Product']
     p_id = prod_row['product_id']
     is_active = prod_row['active']
+    category = prod_row.get('category', 'Standard')
     
     display_name = product_name
+    if category == 'One-Off':
+        display_name = f"🦄 {display_name}"
+
     if is_active == 0:
-        display_name = f"⚠️{product_name}"
+        display_name = f"⚠️ {display_name}"
     
     with st.expander(f"📖 [{p_id}] {display_name}"):
         recipe = full_df[full_df['product_id'] == p_id]
@@ -57,7 +61,7 @@ def render_recipe_display(allow_edit=False):
     products_df = db_utils.get_all_recipes()
 
     if not products_df.empty:
-        unique_products = products_df[['Product', 'product_id', 'active']].drop_duplicates()
+        unique_products = products_df[['Product', 'product_id', 'active', 'category']].drop_duplicates()
         
         if not allow_edit:
             # WORKSPACE VIEW: Show Active + Archived (ONLY if currently in production goals)
@@ -69,12 +73,23 @@ def render_recipe_display(allow_edit=False):
             # Filter: Active OR in current goals
             mask = (unique_products['active'] == 1) | (unique_products['product_id'].isin(active_goal_ids))
             visible_products = unique_products[mask]
+
+            # Separate One-Offs
+            standard_prods = visible_products[visible_products['category'] != 'One-Off']
+            one_off_prods = visible_products[visible_products['category'] == 'One-Off']
             
-            if visible_products.empty:
+            if standard_prods.empty and one_off_prods.empty:
                 st.info("No active recipes found.")
             else:
-                for _, row in visible_products.iterrows():
+                for _, row in standard_prods.iterrows():
                     render_single_recipe(row, products_df, allow_edit)
+                
+                if not one_off_prods.empty:
+                    st.divider()
+                    st.caption("🦄 Active Custom / One-Off Orders")
+                    with st.expander("View One-Offs"):
+                        for _, row in one_off_prods.iterrows():
+                            render_single_recipe(row, products_df, allow_edit)
                     
         else:
             # DESIGNER VIEW: Active separated from Archived
