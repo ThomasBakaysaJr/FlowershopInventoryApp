@@ -1,73 +1,22 @@
 import pytest
 import sqlite3
 import os
+import sys
 from unittest.mock import patch
-from src.utils import db_utils
 
-# --- Helper to setup schema in temp DB ---
-def setup_schema(conn):
-    cursor = conn.cursor()
-    # Replicating schema from init_db.py
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS inventory (
-            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT,
-            sub_category TEXT,
-            count_on_hand INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00,
-            bundle_count INTEGER DEFAULT 1
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            display_name TEXT NOT NULL,
-            image_data BLOB,
-            selling_price REAL DEFAULT 0.00,
-            active BOOLEAN DEFAULT 1,
-            stock_on_hand INTEGER DEFAULT 0
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            item_id INTEGER,
-            qty_needed INTEGER,
-            FOREIGN KEY(product_id) REFERENCES products(product_id),
-            FOREIGN KEY(item_id) REFERENCES inventory(item_id)
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS production_goals (
-            goal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER,
-            due_date DATE,
-            qty_ordered INTEGER DEFAULT 0,
-            qty_fulfilled INTEGER DEFAULT 0,
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS production_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_id INTEGER,
-            product_id INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
-            FOREIGN KEY(product_id) REFERENCES products(product_id)
-        )
-    ''')
-    conn.commit()
+# Add parent directory to path to import init_db
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import init_db
+from src.utils import db_utils
 
 @pytest.fixture
 def mock_db(tmp_path):
     """Sets up a temporary database with the schema and patches db_utils to use it."""
     db_file = tmp_path / "test_inventory.db"
-    conn = sqlite3.connect(db_file)
-    setup_schema(conn)
-    conn.close()
+    
+    # Use the single source of truth for schema
+    init_db.initialize_database(str(db_file))
     
     # Patch the DB_PATH in db_utils to point to our temp file
     with patch("src.utils.db_utils.DB_PATH", str(db_file)):
