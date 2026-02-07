@@ -56,7 +56,21 @@ else:
     )
 
     if st.session_state.nav_main == "🛠️ Workspace":
-        workspace_dashboard.dashboard.render_designer_dashboard()
+        if "nav_workspace" not in st.session_state:
+            st.session_state.nav_workspace = "📅 Upcoming Work"
+
+        st.segmented_control(
+            "Workspace Navigation",
+            options=["📅 Upcoming Work", "🖩 Calculator"],
+            key="nav_workspace",
+            label_visibility="collapsed"
+        )
+
+        if st.session_state.nav_workspace == "📅 Upcoming Work":
+            workspace_dashboard.dashboard.render_designer_dashboard()
+            
+        elif st.session_state.nav_workspace == "🖩 Calculator":
+            pass
 
     elif st.session_state.nav_main == "🎨 Designer Space":
         raw_inventory_df = db_utils.get_inventory()
@@ -80,7 +94,7 @@ else:
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         
-        valid_admin = ["📊 Stock Levels", "🛠️ Admin Tools"]
+        valid_admin = ["📊 Stock Levels", "📃 Inventory Management"]
         if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
 
@@ -94,5 +108,5 @@ else:
         if st.session_state.nav_admin == "📊 Stock Levels":
             admin_inventory_view.render_stock_levels(raw_inventory_df)
         
-        elif st.session_state.nav_admin == "🛠️ Admin Tools":
+        elif st.session_state.nav_admin == "📃 Inventory Management":
             admin.admin_tools.render_admin_tools(raw_inventory_df)
