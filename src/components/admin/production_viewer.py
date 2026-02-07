@@ -3,6 +3,7 @@ import pandas as pd
 import datetime
 from src.utils import db_utils
 
+@st.fragment(run_every=10)
 def render_production_viewer():
     st.header("📅 Production Manager")
     

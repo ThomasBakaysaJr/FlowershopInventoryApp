@@ -6,16 +6,21 @@ from src.utils import db_utils
 def handle_make_stock(product_id, product_name):
     """Callback to increase stock."""
     if db_utils.produce_stock(product_id):
-        st.toast(f"Made 1 {product_name}", icon="📦")
+        st.session_state['prod_dash_toast'] = (f"Made 1 {product_name}", "📦")
 
 def handle_undo_stock(product_id, product_name):
     """Callback to decrease stock."""
     if db_utils.undo_stock_production(product_id):
-        st.toast(f"Undid 1 {product_name}", icon="↩️")
+        st.session_state['prod_dash_toast'] = (f"Undid 1 {product_name}", "↩️")
     else:
-        st.toast("Nothing to undo.", icon="⚠️")
+        st.session_state['prod_dash_toast'] = ("Nothing to undo.", "⚠️")
 
+@st.fragment(run_every=5)
 def render():
+    if 'prod_dash_toast' in st.session_state:
+        msg, icon = st.session_state.pop('prod_dash_toast')
+        st.toast(msg, icon=icon)
+
     st.subheader("📦 Cooler Production Dashboard")
     st.caption("Manage 'Cooler Stock' (Finished Goods). Making items here deducts raw inventory and increases stock on hand.")
     
@@ -31,15 +36,15 @@ def render():
     with col_btns:
         st.write("Quick Select:")
         b_col1, b_col2, b_col3 = st.columns(3, gap="small")
-        if b_col1.button("Today", use_container_width=True):
+        if b_col1.button("Today", width="stretch"):
             st.session_state.prod_dash_start = datetime.date.today()
             st.session_state.prod_dash_end = datetime.date.today()
             st.rerun()
-        if b_col2.button("This Week", use_container_width=True):
+        if b_col2.button("This Week", width="stretch"):
             st.session_state.prod_dash_start = datetime.date.today()
             st.session_state.prod_dash_end = datetime.date.today() + datetime.timedelta(days=6)
             st.rerun()
-        if b_col3.button("This Month", use_container_width=True):
+        if b_col3.button("This Month", width="stretch"):
             st.session_state.prod_dash_start = datetime.date.today()
             st.session_state.prod_dash_end = datetime.date.today() + datetime.timedelta(days=30)
             st.rerun()
@@ -115,7 +120,7 @@ def render_card(row):
             st.button(
                 "➕", 
                 key=f"make_stock_{row['product_id']}", 
-                use_container_width=True,
+                width="stretch",
                 on_click=handle_make_stock,
                 args=(int(row['product_id']), row['Product'])
             )
@@ -124,7 +129,7 @@ def render_card(row):
             st.button(
                 "➖", 
                 key=f"undo_stock_{row['product_id']}", 
-                use_container_width=True,
+                width="stretch",
                 on_click=handle_undo_stock,
                 args=(int(row['product_id']), row['Product'])
             )

@@ -9,7 +9,7 @@ def render_design_tab(inventory_df):
         st.header("🌸 New Arrangement Designer")
         st.caption("Build new products by selecting items from your inventory.")
     with col_reset:
-        if st.button("⚠️ Reset Form", help="Clear all fields and start over", type="secondary", use_container_width=True):
+        if st.button("⚠️ Reset Form", help="Clear all fields and start over", type="secondary", width="stretch"):
             st.session_state.should_clear_input = True
             st.rerun()
 

@@ -69,7 +69,7 @@
     ```
 
 ## 7. Streamlit Rules
-* **Deprecated Arguments:** Use `width='stretch'` instead of `use_container_width=True` (or `use_content_width`) where applicable for dataframes/editors to ensure consistent layout.
+* **Layout Arguments:** Use `width='stretch'` instead of `use_container_width=True` for all widgets (buttons, dataframes, editors) to ensure consistent layout and avoid deprecation warnings.
 
 ## 8. Business Logic Constraints
 * **Clipboard Symmetry:** The "Download Inventory" format must match the "Clipboard Parser" logic. Updates rely on `item_id` and `bundle_count` to calculate `(count * bundle_count) - loss`.
@@ -81,3 +81,7 @@
 ## 9. Reporting & Analytics
 * **Success Metrics:** Performance is measured by `production_goals` data: `qty_ordered` (Demand) vs. `qty_fulfilled` (Success).
 * **End Report:** Should list goals and calculate fulfillment rates to track operational success.
+
+## 10. Concurrency & Auto-Updates
+* **Lightweight Polling:** Use `@st.fragment(run_every=N)` on dashboard render functions to enable auto-refreshing views without reloading the entire page.
+* **Data Freshness:** Fragments must fetch their own data (e.g., `db_utils.get_inventory()`) inside the function body to ensure updates are reflected.

@@ -5,14 +5,19 @@ from src.utils import db_utils
 def handle_log_production(goal_id, product_name):
     # Changed to Fulfill from Stock logic
     if db_utils.fulfill_goal(int(goal_id)):
-        st.toast(f"Packed 1 {product_name}!", icon="📦")
+        st.session_state['weekly_dash_toast'] = (f"Packed 1 {product_name}!", "📦")
 
 def handle_undo_production(goal_id, product_name):
     # Changed to Undo Fulfillment logic
     if db_utils.undo_fulfillment(int(goal_id)):
-        st.toast(f"Returned 1 {product_name} to Cooler", icon="↩️")
+        st.session_state['weekly_dash_toast'] = (f"Returned 1 {product_name} to Cooler", "↩️")
 
+@st.fragment(run_every=5)
 def render():
+    if 'weekly_dash_toast' in st.session_state:
+        msg, icon = st.session_state.pop('weekly_dash_toast')
+        st.toast(msg, icon=icon)
+
     st.subheader("Production Goals")
     goals_df = db_utils.get_weekly_production_goals()
 
@@ -94,7 +99,7 @@ def render_grid(week_data, key_suffix=""):
                                 btn_label, 
                                 key=f"btn_{row['goal_id']}", 
                                 disabled=(needed <= 0 or stock <= 0), 
-                                use_container_width=True,
+                                width="stretch",
                                 on_click=handle_log_production,
                                 args=(row['goal_id'], row['Product'])
                             )
@@ -122,7 +127,7 @@ def render_grid(week_data, key_suffix=""):
                                 st.button(
                                     "Confirm", 
                                     key=f"undo_{row['goal_id']}", 
-                                    use_container_width=True,
+                                    width="stretch",
                                     on_click=handle_undo_production,
                                     args=(row['goal_id'], row['Product'])
                                 )

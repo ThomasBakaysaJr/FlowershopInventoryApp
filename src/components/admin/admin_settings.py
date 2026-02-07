@@ -30,7 +30,7 @@ def render_settings_panel():
             "value": st.column_config.NumberColumn("Value", min_value=0.0, step=0.1, required=True, help="Enter 20 for 20%")
         },
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="settings_additives_editor"
     )
     
