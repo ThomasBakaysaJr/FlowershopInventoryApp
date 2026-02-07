@@ -11,9 +11,9 @@ def render_single_recipe(prod_row, full_df, allow_edit):
     
     display_name = product_name
     if is_active == 0:
-        display_name = f"{product_name} ⚠️ (Archived)"
+        display_name = f"⚠️{product_name}"
     
-    with st.expander(f"📖 {display_name}"):
+    with st.expander(f"📖 [{p_id}] {display_name}"):
         recipe = full_df[full_df['product_id'] == p_id]
 
         # --- VIEW MODE ---

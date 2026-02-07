@@ -453,3 +453,51 @@ def update_item_details(item_id, count, cost, bundle_count):
         return False
     finally:
         conn.close()
+
+def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
+    """Fetches production goals falling within a specific date range."""
+    conn = get_connection()
+    try:
+        # Ensure strings for SQLite comparison
+        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
+        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        
+        query = """
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, pg.due_date, pg.qty_ordered, pg.qty_made
+        FROM production_goals pg
+        JOIN products p ON pg.product_id = p.product_id
+        WHERE pg.due_date BETWEEN ? AND ?
+        ORDER BY pg.due_date ASC, p.display_name ASC
+        """
+        df = pd.read_sql_query(query, conn, params=(s_date, e_date))
+        return df
+    except Exception as e:
+        logger.error(f"get_production_goals_range: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def get_active_and_scheduled_products(start_date, end_date) -> pd.DataFrame:
+    """Returns products that are Active OR have goals in the date range (for dropdowns)."""
+    conn = get_connection()
+    try:
+        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
+        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+
+        query = """
+        SELECT DISTINCT p.product_id, p.display_name 
+        FROM products p
+        WHERE p.active = 1
+        OR p.product_id IN (
+            SELECT product_id FROM production_goals 
+            WHERE due_date BETWEEN ? AND ?
+        )
+        ORDER BY p.display_name ASC
+        """
+        df = pd.read_sql_query(query, conn, params=(s_date, e_date))
+        return df
+    except Exception as e:
+        logger.error(f"get_active_and_scheduled_products: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()

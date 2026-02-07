@@ -5,7 +5,7 @@ import time
 import logging
 from src.utils import db_utils
 from src.components import workspace_dashboard, admin, recipe_display
-from src.components.admin import admin_inventory_view
+from src.components.admin import admin_inventory_view, production_viewer
 
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
@@ -94,7 +94,7 @@ else:
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         
-        valid_admin = ["📊 Stock Levels", "📃 Inventory Management"]
+        valid_admin = ["📊 Stock Levels", "📅 Production Viewer", "📃 Inventory Management"]
         if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
 
@@ -108,5 +108,8 @@ else:
         if st.session_state.nav_admin == "📊 Stock Levels":
             admin_inventory_view.render_stock_levels(raw_inventory_df)
         
+        elif st.session_state.nav_admin == "📅 Production Viewer":
+            production_viewer.render_production_viewer()
+
         elif st.session_state.nav_admin == "📃 Inventory Management":
             admin.admin_tools.render_admin_tools(raw_inventory_df)

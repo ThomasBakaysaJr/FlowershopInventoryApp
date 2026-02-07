@@ -45,6 +45,10 @@ def render(container, inventory_df):
             
             st.session_state.last_loaded_prod_name = prod_name
         
+        # Show ID if available
+        if st.session_state.get('editing_product_id'):
+             st.caption(f"Recipe ID: {st.session_state.editing_product_id}")
+
         # Show existing image if it exists so user knows they don't need to re-upload
         if prod_name:
             current_img = db_utils.get_product_image(prod_name)

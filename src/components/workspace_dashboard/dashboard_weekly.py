@@ -83,9 +83,9 @@ def render_grid(week_data, key_suffix=""):
                                     st.rerun()
                         
                         with col_name:
-                            display_name = row['Product']
+                            display_name = f"[{row['product_id']}] {row['Product']}"
                             if row['active'] == 0:
-                                display_name = f"{display_name} ⚠️ (Archived)"
+                                display_name = f"⚠️ {display_name}"
                                 
                             st.markdown(f"### **{display_name}**" if needed > 0 else f"~~{display_name}~~")
                         
