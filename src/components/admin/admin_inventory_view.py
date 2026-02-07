@@ -11,6 +11,12 @@ def render_stock_levels(raw_inventory_df):
     # Fetch fresh data to ensure auto-updates work within the fragment
     raw_inventory_df = db_utils.get_inventory()
 
+    # Ensure numeric columns are actually numeric to avoid TypeErrors during subtraction
+    if not raw_inventory_df.empty:
+        raw_inventory_df['unit_cost'] = pd.to_numeric(raw_inventory_df['unit_cost'], errors='coerce').fillna(0.0)
+        raw_inventory_df['count_on_hand'] = pd.to_numeric(raw_inventory_df['count_on_hand'], errors='coerce').fillna(0).astype(int)
+        raw_inventory_df['bundle_count'] = pd.to_numeric(raw_inventory_df['bundle_count'], errors='coerce').fillna(1).astype(int)
+
     st.header("Current Stock Levels")
     st.text("Please review any changes before saving.")    
 
