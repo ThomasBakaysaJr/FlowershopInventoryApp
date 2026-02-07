@@ -23,6 +23,7 @@ def get_weekly_production_goals() -> pd.DataFrame:
         SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
+        WHERE pg.qty_fulfilled < pg.qty_ordered OR pg.due_date >= DATE('now', '-30 days')
         """
         df = pd.read_sql_query(query, conn)
         
@@ -722,6 +723,80 @@ def undo_stock_production(product_id: int) -> bool:
     except sqlite3.Error as e:
         logger.error(f"undo_stock_production: {e}")
         conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def get_active_product_options() -> pd.DataFrame:
+    """Returns a simple list of active products for dropdowns."""
+    conn = get_connection()
+    try:
+        return pd.read_sql_query("SELECT product_id, display_name FROM products WHERE active = 1 ORDER BY display_name", conn)
+    except Exception as e:
+        logger.error(f"get_active_product_options: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def add_production_goal(product_id: int, due_date: str, qty_ordered: int) -> bool:
+    """Adds a new production goal."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)", 
+                       (product_id, due_date, qty_ordered))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"add_production_goal: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_production_goal(goal_id: int) -> bool:
+    """Removes a goal. Any items ALREADY made for this goal are returned to General Stock."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # 1. Check if we have any progress on this goal
+        cursor.execute("SELECT product_id, qty_fulfilled FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        
+        if res:
+            p_id, made_count = res
+            
+            # 2. If items were made, move them to 'Stock On Hand' (Back to Cooler)
+            if made_count > 0:
+                logger.info(f"delete_production_goal: Returning {made_count} items to stock for product {p_id}")
+                cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?", (made_count, p_id))
+                
+                # 3. Detach the logs so we keep the history of the work, but unlink it from the deleted goal
+                # Setting goal_id to NULL makes them look like "Stock Production" in history
+                cursor.execute("UPDATE production_logs SET goal_id = NULL WHERE goal_id = ?", (goal_id,))
+        
+        # 4. Delete the goal itself
+        cursor.execute("DELETE FROM production_goals WHERE goal_id = ?", (goal_id,))
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"delete_production_goal: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def update_goal_quantity(goal_id: int, new_qty: int) -> bool:
+    """Updates the target quantity for an existing goal."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE production_goals SET qty_ordered = ? WHERE goal_id = ?", (new_qty, goal_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_goal_quantity: {e}")
         return False
     finally:
         conn.close()
