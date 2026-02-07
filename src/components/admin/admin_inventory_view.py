@@ -19,6 +19,7 @@ def render_stock_levels(raw_inventory_df):
                 "category": st.column_config.TextColumn("Category", disabled=True),
                 "sub_category": st.column_config.TextColumn("Sub-Category", disabled=True),
                 "count_on_hand": st.column_config.NumberColumn("Stock", min_value=0, step=1, required=True),
+                "bundle_count": st.column_config.NumberColumn("Bundle Qty", min_value=1, step=1, required=True, help="Items per bundle/pack"),
                 "unit_cost": st.column_config.NumberColumn("Cost ($)", min_value=0.0, step=0.01, format="$%.2f", required=True)
             },
             hide_index=True,
@@ -38,14 +39,17 @@ def render_stock_levels(raw_inventory_df):
                 
                 cost_changed = abs(row['unit_cost'] - orig_row['unit_cost']) > 0.001
                 count_changed = row['count_on_hand'] != orig_row['count_on_hand']
+                bundle_changed = row['bundle_count'] != orig_row['bundle_count']
                 
-                if cost_changed or count_changed:
+                if cost_changed or count_changed or bundle_changed:
                     changes_count += 1
                     changed_rows.append(row)
                     diff_data.append({
                         "Item": row['name'],
                         "Old Stock": orig_row['count_on_hand'],
                         "New Stock": row['count_on_hand'],
+                        "Old Bundle": orig_row['bundle_count'],
+                        "New Bundle": row['bundle_count'],
                         "Old Cost": orig_row['unit_cost'],
                         "New Cost": row['unit_cost']
                     })
@@ -54,7 +58,7 @@ def render_stock_levels(raw_inventory_df):
             if changes_count > 0:
                 success_count = 0
                 for row in changed_rows:
-                    if db_utils.update_item_details(row['item_id'], row['count_on_hand'], row['unit_cost']):
+                    if db_utils.update_item_details(row['item_id'], row['count_on_hand'], row['unit_cost'], row['bundle_count']):
                         success_count += 1
                 
                 if success_count > 0:
@@ -71,16 +75,19 @@ def render_stock_levels(raw_inventory_df):
             
             diff_df = pd.DataFrame(diff_data)
             # Ensure column order for consistent indexing in the styler
-            diff_df = diff_df[["Item", "Old Stock", "New Stock", "Old Cost", "New Cost"]]
+            diff_df = diff_df[["Item", "Old Stock", "New Stock", "Old Bundle", "New Bundle", "Old Cost", "New Cost"]]
             
             def highlight_cells(x):
                 c = [''] * len(x)
                 # Highlight New Stock (Index 2) if changed
                 if x['New Stock'] != x['Old Stock']:
                     c[2] = 'background-color: rgba(255, 235, 59, 0.3); color: black;'
-                # Highlight New Cost (Index 4) if changed
-                if abs(x['New Cost'] - x['Old Cost']) > 0.001:
+                # Highlight New Bundle (Index 4) if changed
+                if x['New Bundle'] != x['Old Bundle']:
                     c[4] = 'background-color: rgba(255, 235, 59, 0.3); color: black;'
+                # Highlight New Cost (Index 6) if changed
+                if abs(x['New Cost'] - x['Old Cost']) > 0.001:
+                    c[6] = 'background-color: rgba(255, 235, 59, 0.3); color: black;'
                 return c
 
             st.dataframe(

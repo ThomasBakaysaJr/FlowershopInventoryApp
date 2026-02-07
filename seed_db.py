@@ -32,29 +32,29 @@ def seed_database():
     cursor.execute("DELETE FROM inventory")
 
     # 1. Insert Inventory Items
-    # Format: (name, category, sub_category, count_on_hand, unit_cost)
+    # Format: (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
     inventory_items = [
         # Hard Goods
-        ("Judy Vase", "Hard Good", "Vase", 50, 2.50),
-        ("Blue Ceramic Pot", "Hard Good", "Vase", 20, 4.75),
-        ("Clear Bud Vase", "Hard Good", "Vase", 100, 1.10),
+        ("Judy Vase", "Hard Good", "Vase", 50, 2.50, 1),
+        ("Blue Ceramic Pot", "Hard Good", "Vase", 20, 4.75, 1),
+        ("Clear Bud Vase", "Hard Good", "Vase", 100, 1.10, 1),
         # Stems
-        ("Red Rose 40cm", "Stem", "Rose", 200, 0.85),
-        ("White Lily", "Stem", "Lily", 40, 2.25),
-        ("Yellow Tulip", "Stem", "Tulip", 150, 0.65),
-        ("Pink Carnation", "Stem", "Carnation", 300, 0.45),
+        ("Red Rose 40cm", "Stem", "Rose", 200, 0.85, 25),
+        ("White Lily", "Stem", "Lily", 40, 2.25, 10),
+        ("Yellow Tulip", "Stem", "Tulip", 150, 0.65, 10),
+        ("Pink Carnation", "Stem", "Carnation", 300, 0.45, 25),
         # Greenery
-        ("Leather Leaf", "Greenery", None, 100, 0.50),
-        ("Silver Dollar Eucalyptus", "Greenery", "Eucalyptus", 80, 1.20),
-        ("Salal", "Greenery", None, 60, 0.75)
+        ("Leather Leaf", "Greenery", None, 100, 0.50, 10),
+        ("Silver Dollar Eucalyptus", "Greenery", "Eucalyptus", 80, 1.20, 10),
+        ("Salal", "Greenery", None, 60, 0.75, 10)
     ]
     
     item_ids = {}
-    for name, cat, sub_cat, count, cost in inventory_items:
+    for name, cat, sub_cat, count, cost, bundle in inventory_items:
         cursor.execute('''
-            INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, cat, sub_cat, count, cost))
+            INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, cat, sub_cat, count, cost, bundle))
         item_ids[name] = cursor.lastrowid
 
     # 2. Insert Products

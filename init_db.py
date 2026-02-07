@@ -13,7 +13,8 @@ def initialize_database(db_path='inventory.db'):
             category TEXT,
             sub_category TEXT,
             count_on_hand INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00
+            unit_cost REAL DEFAULT 0.00,
+            bundle_count INTEGER DEFAULT 1
         )
     ''')
 
