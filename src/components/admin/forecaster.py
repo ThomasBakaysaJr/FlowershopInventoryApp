@@ -130,5 +130,15 @@ def render_forecaster():
                 "To Buy (Packs)": st.column_config.NumberColumn("To Buy (Packs)", format="%d 📦")
             }
         )
+        
+        # Export Button
+        csv = res_df.to_csv(index=False)
+        st.download_button(
+            label="🛒 Download Shopping List (.csv)",
+            data=csv,
+            file_name=f"shopping_list_{datetime.date.today()}.csv",
+            mime="text/csv",
+            type="primary"
+        )
     else:
         st.info("No ingredients required for the selected production.")

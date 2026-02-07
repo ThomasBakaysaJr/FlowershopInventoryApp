@@ -311,7 +311,8 @@ def update_product_recipe(
     image_bytes: Optional[bytes] = None, 
     new_price: Optional[float] = None,
     rollover_stock: bool = True,
-    category: str = "Standard"
+    category: str = "Standard",
+    migrate_goals: bool = False
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
@@ -351,6 +352,11 @@ def update_product_recipe(
         for item_id, qty in recipe_items:
             cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
                            (new_p_id, item_id, qty))
+        
+        # 6. Migrate Goals (if requested)
+        if migrate_goals:
+            cursor.execute("UPDATE production_goals SET product_id = ? WHERE product_id = ? AND qty_fulfilled < qty_ordered", (new_p_id, current_product_id))
+            logger.info(f"update_product_recipe: Migrated unfulfilled goals from {current_product_id} to {new_p_id}")
         
         logger.info(f"update_product_recipe: Archived old version and created new version (ID: {new_p_id}) for '{final_name}'")
         conn.commit()

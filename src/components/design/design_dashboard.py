@@ -92,8 +92,9 @@ def render_design_tab(inventory_df):
             final_price = st.session_state.get("final_price_input", 0.0)
             recipe_items = st.session_state.new_recipe
             rollover_stock = st.session_state.get("rollover_stock_input", True)
+            migrate_goals = st.session_state.get("migrate_goals_input", True)
             
-            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type, migrate_goals)
 
         # 4. Confirmation Dialog for Overwrite
         design.design_save_logic.render_overwrite_dialog(
@@ -102,5 +103,6 @@ def render_design_tab(inventory_df):
             uploaded_file,
             st.session_state.new_recipe,
             st.session_state.get("rollover_stock_input", True),
-            prod_type
+            prod_type,
+            st.session_state.get("migrate_goals_input", True)
         )
