@@ -16,17 +16,22 @@ def execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=
     if target_id:
         # Update existing (or overwrite target)
         if db_utils.update_product_recipe(target_id, prod_name, db_items, img_bytes, final_price):
-            st.success(f"Updated '{prod_name}'!")
+            st.toast(f"Updated '{prod_name}'!", icon="💾")
             success = True
     else:
         # Create new
         if db_utils.create_new_product(prod_name, final_price, img_bytes, db_items):
-            st.success(f"Successfully created '{prod_name}'!")
+            st.toast(f"Successfully created '{prod_name}'!", icon="✨")
             success = True
     
     if success:
         st.session_state.confirm_overwrite = False
         st.session_state.should_clear_input = True
+        
+        # Auto-navigate to Recipe Book
+        # Use pending state to avoid StreamlitAPIException (modifying key after widget instantiation)
+        st.session_state.pending_nav_admin = "📖 Recipe Book"
+        
         st.rerun()
     else:
         st.error("Failed to save product. Check database connection.")

@@ -2,45 +2,61 @@ import streamlit as st
 import pandas as pd
 import time
 from src.utils import db_utils
-from src.components import recipe_display
 
-def render_designer_dashboard():
-    st.header("This Week's Work")
+def render():
+    st.subheader("Production Goals")
     goals_df = db_utils.get_weekly_production_goals()
-    
+
     if not goals_df.empty:
         # Get unique weeks with both ISO and Display format, sorted by ISO
         weeks = goals_df[['week_start_iso', 'Week Starting']].drop_duplicates().sort_values('week_start_iso')
         
-        # Create tabs for each week
-        tabs = st.tabs([f"Week of {row['Week Starting']}" for _, row in weeks.iterrows()])
+        # --- Safe State Initialization for Week Selector ---
+        # 1. Determine the "Current Week" (closest match)
+        # Find the week that starts before or on today
+        default_week = weeks.iloc[0]['week_start_iso'] # Fallback to first
         
-        for tab, (_, week_row) in zip(tabs, weeks.iterrows()):
-            with tab:
-                week_iso = week_row['week_start_iso']
-                week_data = goals_df[goals_df['week_start_iso'] == week_iso].copy()
-                
-                # Check for date column to group by day
-                date_col = next((col for col in ['goal_date', 'date', 'due_date'] if col in week_data.columns), None)
-                
-                if date_col:
-                    week_data[date_col] = pd.to_datetime(week_data[date_col])
-                    week_data = week_data.sort_values(date_col)
-                    
-                    unique_dates = week_data[date_col].dt.date.unique()
-                    for date_val in unique_dates:
-                        st.subheader(date_val.strftime('%A, %b %d'))
-                        day_data = week_data[week_data[date_col].dt.date == date_val].reset_index(drop=True)
-                        render_grid(day_data, week_iso, key_suffix=f"_{date_val}")
-                else:
-                    render_grid(week_data.reset_index(drop=True), week_iso)
+        # 2. Initialize state if missing
+        if "dashboard_week_select" not in st.session_state:
+            st.session_state.dashboard_week_select = default_week
+
+        # 3. Render Widget
+        week_map = {row['week_start_iso']: f"Week of {row['Week Starting']}" for _, row in weeks.iterrows()}
+        
+        selected_iso = st.segmented_control(
+            "Select Week",
+            options=weeks['week_start_iso'].tolist(),
+            format_func=lambda x: week_map.get(x, x),
+            key="dashboard_week_select",
+            label_visibility="collapsed"
+        )
+
+        # Render Content for Selected Week
+        if selected_iso:
+            render_week_content(goals_df, selected_iso)
     else:
         st.info("No production goals set for the coming weeks.")
 
-    st.divider()
-    recipe_display.render_recipe_display(allow_edit=False)
+def render_week_content(goals_df, week_iso):
+    """Helper to filter data and render the grid for a specific week."""
+    week_data = goals_df[goals_df['week_start_iso'] == week_iso].copy()
+    
+    # Check for date column to group by day
+    date_col = next((col for col in ['goal_date', 'date', 'due_date'] if col in week_data.columns), None)
+    
+    if date_col:
+        week_data[date_col] = pd.to_datetime(week_data[date_col])
+        week_data = week_data.sort_values(date_col)
+        
+        unique_dates = week_data[date_col].dt.date.unique()
+        for date_val in unique_dates:
+            st.subheader(date_val.strftime('%A, %b %d'))
+            day_data = week_data[week_data[date_col].dt.date == date_val].reset_index(drop=True)
+            render_grid(day_data, key_suffix=f"_{date_val}")
+    else:
+        render_grid(week_data.reset_index(drop=True))
 
-def render_grid(week_data, week_iso, key_suffix=""):
+def render_grid(week_data, key_suffix=""):
     # Create a grid: 2 columns on desktop, stacks on mobile
     for i in range(0, len(week_data), 2):
         grid_cols = st.columns(2)

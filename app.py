@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
+import time
 import logging
 from src.utils import db_utils
-import time
-from src.components import admin, design, recipe_display
+from src.components import designer_dashboard, admin, recipe_display
+
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
@@ -26,6 +27,19 @@ st.title("University Flowers Production Dashboard")
 if not os.path.exists(db_utils.DB_PATH):
     st.error("Database not found! Please run `python init_db.py` first.")
 else:
+    # Handle pending navigation changes (Fix for StreamlitAPIException)
+    # We update the state BEFORE the widgets are instantiated in the new run
+    if "pending_nav_main" in st.session_state:
+        st.session_state.nav_main = st.session_state.pop("pending_nav_main")
+    
+    if "pending_nav_admin" in st.session_state:
+        st.session_state.nav_admin = st.session_state.pop("pending_nav_admin")
+
+    # Auto-navigate to Design Studio if an edit is triggered
+    if "design_edit_name" in st.session_state:
+        st.session_state.nav_main = "⚙️ Admin Space"
+        st.session_state.nav_admin = "✏️ Design Studio"
+
     # Initialize navigation state
     if "nav_main" not in st.session_state:
         st.session_state.nav_main = "🎨 Designer Space"
@@ -38,7 +52,7 @@ else:
     )
 
     if st.session_state.nav_main == "🎨 Designer Space":
-        design.designer_dashboard.render_designer_dashboard()
+        designer_dashboard.dashboard.render_designer_dashboard()
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
