@@ -221,7 +221,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, i.name as Ingredient, r.qty_needed as Qty
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, r.item_id, i.name as Ingredient, r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -231,6 +231,29 @@ def get_all_recipes() -> pd.DataFrame:
         return df
     except Exception as e:
         logger.error(f"get_all_recipes: Error fetching recipes: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def get_forecast_initial_data(start_date, end_date) -> pd.DataFrame:
+    """Fetches all active products + archived ones with goals, aggregating expected qty."""
+    conn = get_connection()
+    try:
+        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
+        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+
+        query = """
+        SELECT p.product_id, p.display_name as Product, p.active, COALESCE(SUM(pg.qty_ordered), 0) as Expected
+        FROM products p
+        LEFT JOIN production_goals pg ON p.product_id = pg.product_id AND pg.due_date BETWEEN ? AND ?
+        WHERE p.active = 1 OR pg.goal_id IS NOT NULL
+        GROUP BY p.product_id
+        ORDER BY p.display_name ASC
+        """
+        df = pd.read_sql_query(query, conn, params=(s_date, e_date))
+        return df
+    except Exception as e:
+        logger.error(f"get_forecast_initial_data: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
