@@ -140,17 +140,44 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
         for index, row in df.iterrows():
             try:
                 name = str(row['name']).strip()
-                qty = int(row['count_on_hand'])
+                
+                # Robust casting for Quantity
+                try:
+                    qty = int(float(row['count_on_hand']))
+                except (ValueError, TypeError):
+                    qty = 0
                 
                 # Optional fields (use existing defaults if missing)
                 cat = row.get('category', None)
+                if pd.isna(cat): cat = None
+                
                 sub = row.get('sub_category', None)
-                cost = row.get('unit_cost', 0.0)
-                bundle = row.get('bundle_count', 1)
+                if pd.isna(sub): sub = None
+                
+                # Robust casting for Cost (handle '$' and ',')
+                raw_cost = row.get('unit_cost', 0.0)
+                try:
+                    cost = float(str(raw_cost).replace('$', '').replace(',', '')) if pd.notna(raw_cost) else 0.0
+                except (ValueError, TypeError):
+                    cost = 0.0
+                
+                # Robust casting for Bundle Count
+                raw_bundle = row.get('bundle_count', 1)
+                try:
+                    bundle = int(float(raw_bundle)) if pd.notna(raw_bundle) else 1
+                except (ValueError, TypeError):
+                    bundle = 1
+
                 i_id = row.get('item_id', None)
+                if pd.isna(i_id): i_id = None
+                else:
+                    try:
+                        i_id = int(float(i_id))
+                    except (ValueError, TypeError):
+                        i_id = None
                 
                 # LOGIC: ID Match -> Name Match -> Insert New
-                if i_id and pd.notna(i_id):
+                if i_id:
                     cursor.execute("""
                         UPDATE inventory 
                         SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=?
@@ -256,14 +283,25 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
             try:
                 # 1. Product Details (from first row)
                 first_row = group.iloc[0]
-                price = float(first_row.get('price', 0.0))
+                
+                raw_price = first_row.get('price', 0.0)
+                try:
+                    price = float(str(raw_price).replace('$', '').replace(',', '')) if pd.notna(raw_price) else 0.0
+                except (ValueError, TypeError):
+                    price = 0.0
+
                 # This handles your "One-Off" vs "Standard" logic
                 cat = first_row.get('type', 'Standard') 
+                if pd.isna(cat): cat = 'Standard'
                 
                 # 2. Build Recipe List
                 recipe_items = []
                 for _, row in group.iterrows():
-                    qty = int(row['qty'])
+                    try:
+                        qty = int(float(row['qty']))
+                    except (ValueError, TypeError):
+                        qty = 0
+                        
                     if qty <= 0: continue
                     
                     item_id = None
@@ -271,7 +309,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     # Strategy 1: Lookup by ID (Preferred)
                     if 'item_id' in row and pd.notna(row['item_id']):
                         try:
-                            tid = int(row['item_id'])
+                            tid = int(float(row['item_id']))
                             cursor.execute("SELECT item_id FROM inventory WHERE item_id = ?", (tid,))
                             res = cursor.fetchone()
                             if res: item_id = res[0]

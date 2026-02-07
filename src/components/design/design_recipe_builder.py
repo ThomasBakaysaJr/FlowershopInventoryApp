@@ -22,7 +22,11 @@ def render(container, inventory_df):
             
             def format_item_label(item_id):
                 item = id_to_item[item_id]
-                return f"{item['name']} (${item['unit_cost']:.2f})"
+                try:
+                    cost = float(item['unit_cost'])
+                except (ValueError, TypeError):
+                    cost = 0.0
+                return f"{item['name']} (${cost:.2f})"
             
             selected_item_id = st.selectbox("Select Ingredient", options=id_to_item.keys(), format_func=format_item_label)
             qty = st.number_input("Quantity", min_value=1, value=1)
