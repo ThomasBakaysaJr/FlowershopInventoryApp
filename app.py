@@ -98,7 +98,7 @@ else:
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
         
-        valid_admin = ["📊 Stock Levels", "📅 Production Viewer", "🔮 Forecaster", "📃 Inventory Management"]
+        valid_admin = ["📊 Stock Levels", "📅 Production Manager", "🔮 Forecaster", "📋 EOD Inventory Count", "📦 Bulk Operations"]
         if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
 
@@ -112,11 +112,14 @@ else:
         if st.session_state.nav_admin == "📊 Stock Levels":
             admin_inventory_view.render_stock_levels(raw_inventory_df)
         
-        elif st.session_state.nav_admin == "📅 Production Viewer":
+        elif st.session_state.nav_admin == "📅 Production Manager":
             production_viewer.render_production_viewer()
 
         elif st.session_state.nav_admin == "🔮 Forecaster":
             forecaster.render_forecaster()
 
-        elif st.session_state.nav_admin == "📃 Inventory Management":
-            admin.admin_tools.render_admin_tools(raw_inventory_df)
+        elif st.session_state.nav_admin == "📋 EOD Inventory Count":
+            admin.admin_tools.render_eod_tools(raw_inventory_df)
+            
+        elif st.session_state.nav_admin == "📦 Bulk Operations":
+            admin.admin_tools.render_bulk_operations(raw_inventory_df)

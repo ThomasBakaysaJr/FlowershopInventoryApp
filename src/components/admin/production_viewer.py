@@ -4,7 +4,7 @@ import datetime
 from src.utils import db_utils
 
 def render_production_viewer():
-    st.header("📅 Production Viewer")
+    st.header("📅 Production Manager")
     
     # 1. Date Controls
     col_start, col_end = st.columns(2)
@@ -48,15 +48,48 @@ def render_production_viewer():
                 axis=1
             )
         
-        # Rename columns to match request: recipe_id | recipe name | expected
-        # We also keep Due Date as it is critical for a viewer
-        display_df = goals_df[['product_id', 'Product', 'due_date', 'qty_ordered']].copy()
-        display_df.columns = ["Recipe ID", "Recipe Name", "Due Date", "Expected"]
+        # Interactive Goal Management Table
+        with st.container(border=True):
+            # Header Row
+            h1, h2, h3, h4, h5 = st.columns([1, 2, 1, 1, 0.5])
+            h1.markdown("**Due Date**")
+            h2.markdown("**Product**")
+            h3.markdown("**Progress**")
+            h4.markdown("**Edit Target**")
+            h5.markdown("**Del**")
+            
+            for _, row in goals_df.iterrows():
+                c1, c2, c3, c4, c5 = st.columns([1, 2, 1, 1, 0.5], vertical_alignment="center")
+                
+                with c1:
+                    # Handle string dates if they come back as strings from the range query
+                    d_val = pd.to_datetime(row['due_date'])
+                    st.write(d_val.strftime('%b %d'))
+                with c2:
+                    st.write(row['Product'])
+                with c3:
+                    st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
+                
+                with c4:
+                    # EDIT QUANTITY Logic
+                    new_val = st.number_input(
+                        "Qty", 
+                        min_value=1, 
+                        value=int(row['qty_ordered']), 
+                        label_visibility="collapsed",
+                        key=f"edit_qty_{row['goal_id']}"
+                    )
+                    
+                    if new_val != row['qty_ordered']:
+                        if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity"):
+                            if db_utils.update_goal_quantity(row['goal_id'], new_val):
+                                st.toast(f"Updated goal to {new_val}!")
+                                st.rerun()
         
-        st.dataframe(
-            display_df,
-            hide_index=True,
-            width="stretch"
-        )
+                with c5:
+                    if st.button("❌", key=f"del_goal_{row['goal_id']}", help="Delete Goal (Returns items to Stock)"):
+                        if db_utils.delete_production_goal(row['goal_id']):
+                            st.toast("Goal deleted. Completed items returned to Cooler.")
+                            st.rerun()
     else:
         st.info("No production goals found for this period.")

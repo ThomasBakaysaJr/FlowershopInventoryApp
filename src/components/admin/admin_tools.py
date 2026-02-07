@@ -2,8 +2,8 @@ import streamlit as st
 import time
 from src.utils import db_utils
 
-def render_admin_tools(raw_inventory_df):
-    st.header("Inventory Management Tools")
+def render_eod_tools(raw_inventory_df):
+    st.header("EOD Inventory Count")
     
     if not raw_inventory_df.empty:
         st.subheader("Download Inventory List")
@@ -55,57 +55,70 @@ def render_admin_tools(raw_inventory_df):
                     for err in errors:
                         st.error(f"❌ {err}")
 
+def render_bulk_operations(raw_inventory_df):
+    # ==========================
+    # 📦 BULK OPERATIONS SECTION
+    # ==========================
+    st.header("📦 Bulk Operations")
+    
+    # 1. INVENTORY MASS UPDATE
+    st.subheader("1. Inventory Mass Update")
+    st.caption("Download current inventory, update counts/costs in Excel, and re-upload.")
+    
+    col_dl_inv, col_up_inv = st.columns(2)
+    
+    with col_dl_inv:
+        csv_data = db_utils.export_inventory_csv()
+        st.download_button(
+            label="⬇️ Download Inventory CSV",
+            data=csv_data,
+            file_name=f"inventory_export_{time.strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            help="Includes ID to ensure exact matching."
+        )
+        
+    with col_up_inv:
+        inv_file = st.file_uploader("Upload Inventory (.csv)", type=["csv"], key="inv_upload")
+        if inv_file:
+            if st.button("Process Inventory Update", type="primary"):
+                count, errors = db_utils.process_bulk_inventory_upload(inv_file)
+                if count > 0:
+                    st.success(f"✅ Successfully updated {count} items!")
+                    time.sleep(1) # Give user time to see success
+                    st.rerun()
+                if errors:
+                    with st.expander("⚠️ Import Errors", expanded=True):
+                        for e in errors:
+                            st.error(e)
+                            
     st.divider()
     
-    st.subheader("🗑️ Goal Management")
-    st.caption("Edit quantities or cancel production goals.")
-
-    # Reuse the existing getter since it grabs everything
-    goals_df = db_utils.get_weekly_production_goals()
+    # 2. PRODUCT & RECIPE IMPORT
+    st.subheader("2. Recipe & Product Import")
+    st.caption("Mass import products. Required Columns: **Product, Price, Type, Ingredient, Qty**")
     
-    if not goals_df.empty:
-        # Sort by ID descending (show newest created first usually helps find mistakes)
-        goals_df = goals_df.sort_values('goal_id', ascending=False)
+    col_dl_prod, col_up_prod = st.columns(2)
+    
+    with col_dl_prod:
+        prod_csv = db_utils.export_products_csv()
+        st.download_button(
+            label="⬇️ Download Catalog CSV",
+            data=prod_csv,
+            file_name=f"catalog_export_{time.strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            help="Use this to back up recipes or add new ones."
+        )
         
-        with st.container(border=True):
-            # Header Row
-            h1, h2, h3, h4, h5 = st.columns([1, 2, 1, 1, 0.5])
-            h1.markdown("**Due Date**")
-            h2.markdown("**Product**")
-            h3.markdown("**Progress**")
-            h4.markdown("**Edit Target**")
-            h5.markdown("**Del**")
-            
-            for _, row in goals_df.iterrows():
-                c1, c2, c3, c4, c5 = st.columns([1, 2, 1, 1, 0.5], vertical_alignment="center")
-                
-                with c1:
-                    st.write(row['due_date'].strftime('%b %d'))
-                with c2:
-                    st.write(row['Product'])
-                with c3:
-                    st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
-                
-                with c4:
-                    # EDIT QUANTITY Logic
-                    new_val = st.number_input(
-                        "Qty", 
-                        min_value=1, 
-                        value=int(row['qty_ordered']), 
-                        label_visibility="collapsed",
-                        key=f"edit_qty_{row['goal_id']}"
-                    )
-                    
-                    if new_val != row['qty_ordered']:
-                        if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity"):
-                            if db_utils.update_goal_quantity(row['goal_id'], new_val):
-                                st.toast(f"Updated goal to {new_val}!")
-                                st.rerun()
-
-                with c5:
-                    if st.button("❌", key=f"del_goal_{row['goal_id']}", help="Delete Goal (Returns items to Stock)"):
-                        if db_utils.delete_production_goal(row['goal_id']):
-                            st.toast("Goal deleted. Completed items returned to Cooler.")
-                            st.rerun()
-    else:
-        st.info("No active goals found.")
+    with col_up_prod:
+        prod_file = st.file_uploader("Upload Recipes (.csv)", type=["csv"], key="prod_upload")
+        if prod_file:
+            if st.button("Process Recipe Import", type="primary"):
+                count, errors = db_utils.process_bulk_recipe_upload(prod_file)
+                if count > 0:
+                    st.success(f"✅ Processed {count} products!")
+                    time.sleep(1)
+                    st.rerun()
+                if errors:
+                    with st.expander("⚠️ Import Errors", expanded=True):
+                        for e in errors:
+                            st.error(e)

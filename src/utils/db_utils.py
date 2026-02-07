@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import logging
 from typing import Optional, List, Tuple, Union
+import io
+import csv
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,206 @@ def log_production(goal_id: int) -> bool:
         logger.error(f"log_production: Database error: {e}")
         conn.rollback()
         return False
+    finally:
+        conn.close()
+
+# ==========================================
+# 📦 BULK INVENTORY OPERATIONS (Count & Cost)
+# ==========================================
+
+def export_inventory_csv() -> str:
+    """Generates a CSV string of the current inventory for auditing."""
+    conn = get_connection()
+    try:
+        # We export ID so we can match exactly on re-upload
+        df = pd.read_sql_query("SELECT item_id, name, category, sub_category, unit_cost, bundle_count, count_on_hand FROM inventory ORDER BY category, name", conn)
+        return df.to_csv(index=False)
+    except Exception as e:
+        logger.error(f"export_inventory_csv: {e}")
+        return ""
+    finally:
+        conn.close()
+
+def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
+    """Reads a CSV file and updates inventory. Matches by ID first, then Name."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    updated_count = 0
+    errors = []
+    
+    try:
+        df = pd.read_csv(file_obj)
+        # Normalize headers to lowercase to be user-friendly
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        if 'name' not in df.columns or 'count_on_hand' not in df.columns:
+            return 0, ["CSV missing required columns: 'name', 'count_on_hand'"]
+            
+        for index, row in df.iterrows():
+            try:
+                name = str(row['name']).strip()
+                qty = int(row['count_on_hand'])
+                
+                # Optional fields (use existing defaults if missing)
+                cat = row.get('category', None)
+                sub = row.get('sub_category', None)
+                cost = row.get('unit_cost', 0.0)
+                bundle = row.get('bundle_count', 1)
+                i_id = row.get('item_id', None)
+                
+                # LOGIC: ID Match -> Name Match -> Insert New
+                if i_id and pd.notna(i_id):
+                    cursor.execute("""
+                        UPDATE inventory 
+                        SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=?
+                        WHERE item_id=?
+                    """, (name, cat, sub, qty, cost, bundle, i_id))
+                else:
+                    cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (name,))
+                    res = cursor.fetchone()
+                    if res:
+                        cursor.execute("""
+                            UPDATE inventory 
+                            SET count_on_hand=?, category=?, sub_category=?, unit_cost=?, bundle_count=?
+                            WHERE item_id=?
+                        """, (qty, cat, sub, cost, bundle, res[0]))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (name, cat, sub, qty, cost, bundle))
+                
+                updated_count += 1
+                
+            except Exception as row_e:
+                errors.append(f"Row {index + 2} Error: {row_e}")
+                
+        conn.commit()
+        return updated_count, errors
+    except Exception as e:
+        logger.error(f"process_bulk_inventory_upload: {e}")
+        conn.rollback()
+        return 0, [str(e)]
+    finally:
+        conn.close()
+
+# ==========================================
+# 🌸 BULK RECIPE OPERATIONS (Catalog)
+# ==========================================
+
+def export_products_csv() -> str:
+    """Generates a 'Tidy Data' CSV of all products/recipes."""
+    conn = get_connection()
+    try:
+        # We explicitly grab the 'category' column to support One-Offs
+        query = """
+        SELECT p.display_name as Product, p.selling_price as Price, p.category as Type,
+               i.name as Ingredient, r.qty_needed as Qty
+        FROM products p
+        LEFT JOIN recipes r ON p.product_id = r.product_id
+        LEFT JOIN inventory i ON r.item_id = i.item_id
+        WHERE p.active = 1
+        ORDER BY p.display_name
+        """
+        df = pd.read_sql_query(query, conn)
+        return df.to_csv(index=False)
+    except Exception as e:
+        logger.error(f"export_products_csv: {e}")
+        return ""
+    finally:
+        conn.close()
+
+def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
+    """Imports products/recipes. Format: Product, Price, Type, Ingredient, Qty."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    created_count = 0
+    errors = []
+    
+    try:
+        df = pd.read_csv(file_obj)
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        required = ['product', 'ingredient', 'qty']
+        if not all(col in df.columns for col in required):
+            return 0, [f"CSV missing required columns: {required}"]
+            
+        # Group by Product Name so we process the whole recipe at once
+        grouped = df.groupby('product')
+        
+        for product_name, group in grouped:
+            try:
+                # 1. Product Details (from first row)
+                first_row = group.iloc[0]
+                price = float(first_row.get('price', 0.0))
+                # This handles your "One-Off" vs "Standard" logic
+                cat = first_row.get('type', 'Standard') 
+                
+                # 2. Build Recipe List
+                recipe_items = []
+                for _, row in group.iterrows():
+                    ing_name = str(row['ingredient']).strip()
+                    qty = int(row['qty'])
+                    
+                    if not ing_name or qty <= 0: continue
+                    
+                    # Find Ingredient ID
+                    cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        # Fail safe: Don't create products with missing ingredients
+                        raise ValueError(f"Ingredient '{ing_name}' not found in Inventory.")
+                    
+                    recipe_items.append((res[0], qty))
+                
+                if not recipe_items:
+                    errors.append(f"Skipped '{product_name}': No valid ingredients.")
+                    continue
+
+                # 3. Create or Update Product
+                cursor.execute("SELECT product_id FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+                prod_res = cursor.fetchone()
+                
+                if prod_res:
+                    # UPDATE (Immutable Pattern)
+                    p_id = prod_res[0]
+                    
+                    # 1. Fetch existing data to preserve (Image, Stock)
+                    cursor.execute("SELECT image_data, stock_on_hand FROM products WHERE product_id = ?", (p_id,))
+                    existing_data = cursor.fetchone()
+                    old_img = existing_data[0] if existing_data else None
+                    old_stock = existing_data[1] if existing_data else 0
+                    
+                    # 2. Archive Old
+                    cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (p_id,))
+                    
+                    # 3. Create New (New Price/Cat, Old Image/Stock)
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category) VALUES (?, ?, ?, 1, ?, ?)", 
+                                   (product_name, price, old_img, old_stock, cat))
+                    new_id = cursor.lastrowid
+                    
+                    # 4. Insert Recipes
+                    for item_id, q in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
+                else:
+                    # INSERT
+                    cursor.execute("INSERT INTO products (display_name, selling_price, category, active, stock_on_hand) VALUES (?, ?, ?, 1, 0)", 
+                                   (product_name, price, cat))
+                    new_id = cursor.lastrowid
+                    for item_id, q in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
+                
+                created_count += 1
+                
+            except Exception as prod_e:
+                errors.append(f"Error processing '{product_name}': {prod_e}")
+        
+        conn.commit()
+        return created_count, errors
+    except Exception as e:
+        logger.error(f"process_bulk_recipe_upload: {e}")
+        conn.rollback()
+        return 0, [str(e)]
     finally:
         conn.close()
 
