@@ -38,6 +38,8 @@ def initialize_database(db_path='inventory.db'):
             product_id INTEGER,
             item_id INTEGER,
             qty_needed INTEGER,
+            requirement_type TEXT DEFAULT 'Specific',
+            requirement_value TEXT,
             FOREIGN KEY(product_id) REFERENCES products(product_id),
             FOREIGN KEY(item_id) REFERENCES inventory(item_id)
         )

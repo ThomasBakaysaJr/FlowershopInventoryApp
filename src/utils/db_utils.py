@@ -63,8 +63,11 @@ def get_inventory() -> pd.DataFrame:
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
 
-def log_production(goal_id: int) -> bool:
-    """Increments production count and deducts inventory (BOM)."""
+def log_production(goal_id: int, substitutions: list = None) -> bool:
+    """
+    Increments production count and deducts inventory (BOM).
+    substitutions: List of (item_id, qty_to_deduct) derived from user selection for generics.
+    """
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -86,15 +89,17 @@ def log_production(goal_id: int) -> bool:
         # Insert Log Entry
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
         
-        # 3. Deduct Inventory (Bill of Materials)
-        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
-        recipe_items = cursor.fetchall()
+        # 3. Deduct Standard Inventory (Specific Items)
+        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (p_id,))
+        specific_items = cursor.fetchall()
         
-        if not recipe_items:
-            logger.warning(f"log_production: No recipe found for product_id {p_id}")
-            
-        for i_id, qty in recipe_items:
+        for i_id, qty in specific_items:
             cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+            
+        # 4. Deduct Substitutions (The Dynamic Part)
+        if substitutions:
+            for sub_item_id, sub_qty in substitutions:
+                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (sub_qty, sub_item_id))
         
         conn.commit()
         return True
@@ -176,7 +181,7 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
                     except (ValueError, TypeError):
                         i_id = None
                 
-                # LOGIC: ID Match -> Name Match -> Insert New
+                # LOGIC: ID Match -> Update; No ID -> Insert New (No Name Match Overwrite)
                 if i_id:
                     cursor.execute("""
                         UPDATE inventory 
@@ -184,19 +189,10 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
                         WHERE item_id=?
                     """, (name, cat, sub, qty, cost, bundle, i_id))
                 else:
-                    cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (name,))
-                    res = cursor.fetchone()
-                    if res:
-                        cursor.execute("""
-                            UPDATE inventory 
-                            SET count_on_hand=?, category=?, sub_category=?, unit_cost=?, bundle_count=?
-                            WHERE item_id=?
-                        """, (qty, cat, sub, cost, bundle, res[0]))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (name, cat, sub, qty, cost, bundle))
+                    cursor.execute("""
+                        INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (name, cat, sub, qty, cost, bundle))
                 
                 updated_count += 1
                 
@@ -222,8 +218,10 @@ def export_products_csv() -> str:
     try:
         # We explicitly grab the 'category' column to support One-Offs
         query = """
-        SELECT p.display_name as Product, p.selling_price as Price, p.category as Type,
-               i.item_id, i.name as Ingredient, r.qty_needed as Qty
+        SELECT p.display_name as Product, p.selling_price as Price, p.category as Type, 
+               r.item_id, 
+               COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
+               r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -305,6 +303,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     if qty <= 0: continue
                     
                     item_id = None
+                    req_type = 'Specific'
+                    req_val = None
+                    ing_name = str(row.get('ingredient', '')).strip()
                     
                     # Strategy 1: Lookup by ID (Preferred)
                     if 'item_id' in row and pd.notna(row['item_id']):
@@ -316,19 +317,23 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                         except (ValueError, TypeError): pass
                     
                     # Strategy 2: Lookup by Name (Fallback)
-                    if item_id is None and 'ingredient' in row:
-                        ing_name = str(row['ingredient']).strip()
-                        if ing_name:
-                            cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
-                            res = cursor.fetchone()
-                            if res: item_id = res[0]
+                    if item_id is None and ing_name:
+                        cursor.execute("SELECT item_id FROM inventory WHERE name = ? COLLATE NOCASE", (ing_name,))
+                        res = cursor.fetchone()
+                        if res: item_id = res[0]
+                    
+                    # Strategy 3: Generic Detection (e.g. "Any Rose")
+                    if item_id is None and ing_name.lower().startswith("any "):
+                        req_type = 'Category'
+                        req_val = ing_name[4:].strip()
                     
                     if item_id is None:
-                        ing_ref = row.get('ingredient', 'Unknown')
-                        id_ref = row.get('item_id', 'N/A')
-                        raise ValueError(f"Ingredient not found in Inventory (Name: '{ing_ref}', ID: {id_ref}).")
+                        # Only raise error if it's not a valid Generic
+                        if req_type == 'Specific':
+                            id_ref = row.get('item_id', 'N/A')
+                            raise ValueError(f"Ingredient not found in Inventory (Name: '{ing_name}', ID: {id_ref}).")
                     
-                    recipe_items.append((item_id, qty))
+                    recipe_items.append((item_id, qty, req_type, req_val))
                 
                 if not recipe_items:
                     errors.append(f"Skipped '{product_name}': No valid ingredients.")
@@ -363,15 +368,15 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
-                    for item_id, q in recipe_items:
-                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
+                    for item_id, q, r_type, r_val in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) VALUES (?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val))
                 else:
                     # INSERT
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand) VALUES (?, ?, ?, ?, 1, 0)", 
                                    (product_name, price, new_image_bytes, cat))
                     new_id = cursor.lastrowid
-                    for item_id, q in recipe_items:
-                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", (new_id, item_id, q))
+                    for item_id, q, r_type, r_val in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) VALUES (?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val))
                 
                 created_count += 1
                 
@@ -390,7 +395,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
 def update_product_recipe(
     current_product_id: int,
     new_name: str,
-    recipe_items: List[Tuple[int, int]], 
+    recipe_items: List[Union[Tuple[int, int], dict]], 
     image_bytes: Optional[bytes] = None, 
     new_price: Optional[float] = None,
     rollover_stock: bool = True,
@@ -434,9 +439,19 @@ def update_product_recipe(
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
-        for item_id, qty in recipe_items:
-            cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)", 
-                           (new_p_id, item_id, qty))
+        for item in recipe_items:
+            # Handle both old format (tuple) and new format (dict)
+            if isinstance(item, tuple):
+                item_id, qty = item
+                req_type, req_val = 'Specific', None
+            elif isinstance(item, dict):
+                item_id = item.get('id') or item.get('item_id')
+                qty = item.get('qty')
+                req_type = item.get('type', 'Specific')
+                req_val = item.get('val') or item.get('value')
+
+            cursor.execute("""INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) 
+                              VALUES (?, ?, ?, ?, ?)""", (new_p_id, item_id, qty, req_type, req_val))
         
         # 6. Migrate Goals (if requested)
         if migrate_goals:
@@ -618,7 +633,10 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, r.item_id, i.name as Ingredient, r.qty_needed as Qty
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, 
+               r.item_id, 
+               COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
+               r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -753,7 +771,7 @@ def create_new_product(
     name: str, 
     selling_price: float, 
     image_bytes: Optional[bytes], 
-    recipe_items: List[Tuple[int, int]],
+    recipe_items: List[Union[Tuple[int, int], dict]],
     category: str = "Standard",
     goal_date: Optional[str] = None,
     goal_qty: int = 0
@@ -768,9 +786,20 @@ def create_new_product(
         product_id = cursor.lastrowid
         
         # 2. Insert Recipe Items
-        for item_id, qty in recipe_items:
-            cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)",
-                           (product_id, item_id, qty))
+        for item in recipe_items:
+            # Handle both old format (tuple) and new format (dict)
+            if isinstance(item, tuple):
+                item_id, qty = item
+                req_type, req_val = 'Specific', None
+            elif isinstance(item, dict):
+                item_id = item.get('id') or item.get('item_id')
+                qty = item.get('qty')
+                req_type = item.get('type', 'Specific')
+                req_val = item.get('val') or item.get('value')
+            
+            cursor.execute("""
+                INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) 
+                VALUES (?, ?, ?, ?, ?)""", (product_id, item_id, qty, req_type, req_val))
         
         # 3. Insert Goal (if provided)
         if goal_date and goal_qty > 0:
@@ -832,13 +861,22 @@ def get_product_details(product_name: str) -> Optional[dict]:
         
         # Get Recipe Items
         cursor.execute("""
-            SELECT r.item_id, i.name, r.qty_needed 
+            SELECT r.item_id, i.name, r.qty_needed, r.requirement_type, r.requirement_value
             FROM recipes r
-            JOIN inventory i ON r.item_id = i.item_id
+            LEFT JOIN inventory i ON r.item_id = i.item_id
             WHERE r.product_id = ?
         """, (p_id,))
         
-        recipe_items = [{"item_id": row[0], "name": row[1], "qty": row[2]} for row in cursor.fetchall()]
+        recipe_items = []
+        for row in cursor.fetchall():
+            # If specific item name is None, use the generic requirement value (e.g. "Any Rose")
+            if row[1]:
+                name = row[1]
+            elif row[4]:
+                name = f"Any {row[4]}"
+            else:
+                name = "Unknown Item"
+            recipe_items.append({"item_id": row[0], "name": name, "qty": row[2]})
         
         return {
             "product_id": p_id,
@@ -963,7 +1001,7 @@ def get_production_requirements(start_date, end_date) -> pd.DataFrame:
     finally:
         conn.close()
 
-def produce_stock(product_id: int) -> bool:
+def produce_stock(product_id: int, substitutions: list = None) -> bool:
     """Increments stock_on_hand and deducts inventory (BOM). Logs with goal_id=NULL."""
     conn = get_connection()
     try:
@@ -980,11 +1018,17 @@ def produce_stock(product_id: int) -> bool:
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (NULL, ?)", (product_id,))
         
         # 3. Deduct Inventory
-        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (product_id,))
-        recipe_items = cursor.fetchall()
+        # Only deduct Specific items automatically
+        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (product_id,))
+        specific_items = cursor.fetchall()
         
-        for i_id, qty in recipe_items:
+        for i_id, qty in specific_items:
             cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+            
+        # 4. Deduct Substitutions (Generic Items)
+        if substitutions:
+            for sub_item_id, sub_qty in substitutions:
+                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (sub_qty, sub_item_id))
             
         conn.commit()
         return True
@@ -1093,6 +1137,72 @@ def delete_production_goal(goal_id: int) -> bool:
         logger.error(f"delete_production_goal: {e}")
         conn.rollback()
         return False
+    finally:
+        conn.close()
+
+def get_recipe_requirements(product_id: int) -> dict:
+    """
+    Analyzes a recipe to see if it has 'Category' requirements that need user input.
+    Returns: {
+        'has_generics': bool,
+        'specific_items': [(item_id, qty), ...],
+        'generic_items': [{'category': 'Rose', 'qty': 12}, ...]
+    }
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT item_id, qty_needed, requirement_type, requirement_value 
+            FROM recipes WHERE product_id = ?
+        """, (product_id,))
+        
+        rows = cursor.fetchall()
+        result = {'has_generics': False, 'specific_items': [], 'generic_items': []}
+        
+        for item_id, qty, req_type, req_val in rows:
+            if req_type == 'Category':
+                result['has_generics'] = True
+                result['generic_items'].append({'category': req_val, 'qty': qty})
+            else:
+                result['specific_items'].append((item_id, qty))
+                
+        return result
+    finally:
+        conn.close()
+
+def get_items_by_category(category: str) -> pd.DataFrame:
+    """Returns a DataFrame of inventory items matching a specific sub_category."""
+    conn = get_connection()
+    try:
+        return pd.read_sql_query(
+            "SELECT item_id, name, count_on_hand FROM inventory WHERE sub_category = ? COLLATE NOCASE AND count_on_hand > 0", 
+            conn, 
+            params=(category,)
+        )
+    finally:
+        conn.close()
+
+def get_forecast_generic_requirements(start_date, end_date):
+    """Returns aggregated demand for generic categories within a date range."""
+    conn = get_connection()
+    try:
+        # Ensure strings for SQLite comparison
+        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
+        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+
+        query = """
+            SELECT 
+                r.requirement_value as Category,
+                SUM((g.qty_ordered - g.qty_fulfilled) * r.qty_needed) as Needed
+            FROM production_goals g
+            JOIN recipes r ON g.product_id = r.product_id
+            WHERE g.due_date BETWEEN ? AND ?
+              AND r.requirement_type = 'Category'
+              AND (g.qty_ordered - g.qty_fulfilled) > 0
+            GROUP BY r.requirement_value
+        """
+        return pd.read_sql_query(query, conn, params=(s_date, e_date))
     finally:
         conn.close()
 

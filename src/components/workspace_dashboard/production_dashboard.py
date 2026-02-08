@@ -5,8 +5,73 @@ from src.utils import db_utils
 
 def handle_make_stock(product_id, product_name):
     """Callback to increase stock."""
-    if db_utils.produce_stock(product_id):
-        st.session_state['prod_dash_toast'] = (f"Made 1 {product_name}", "📦")
+    # 1. Check Requirements
+    reqs = db_utils.get_recipe_requirements(product_id)
+    
+    if not reqs['has_generics']:
+        # Fast Path: Just Log it
+        if db_utils.produce_stock(product_id):
+            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name}", "📦")
+    else:
+        # Slow Path: Open Modal for Selection
+        trigger_generic_stock_modal(product_id, product_name, reqs['generic_items'])
+
+@st.dialog("🌸 Select Flowers Used")
+def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
+    st.write(f"Making **{product_name}**. Please specify generic items used.")
+    
+    substitutions_to_make = []
+    valid_form = True
+    
+    # Loop through each requirement
+    for req in generic_reqs:
+        category = req['category']
+        needed = req['qty']
+        
+        st.divider()
+        st.markdown(f"**Required:** {needed} x {category}")
+        
+        # Fetch available items in this category
+        inventory_df = db_utils.get_items_by_category(category) 
+        
+        if inventory_df.empty:
+            st.error(f"No {category} in stock!")
+            valid_form = False
+            continue
+
+        total_allocated = 0
+        
+        # Dynamic inputs for allocation
+        for _, item in inventory_df.iterrows():
+            cols = st.columns([3, 1])
+            with cols[0]:
+                st.write(f"{item['name']} (Stock: {item['count_on_hand']})")
+            with cols[1]:
+                max_val = int(item['count_on_hand']) if pd.notna(item['count_on_hand']) else 0
+                allocated = st.number_input(
+                    "Use", 
+                    min_value=0, 
+                    max_value=max_val,
+                    step=1,
+                    key=f"stock_alloc_{product_id}_{item['item_id']}",
+                    label_visibility="collapsed"
+                )
+            
+            if allocated > 0:
+                substitutions_to_make.append((item['item_id'], allocated))
+                total_allocated += allocated
+        
+        if total_allocated != needed:
+            st.warning(f"Selected {total_allocated} / {needed} {category}s.")
+            valid_form = False
+        else:
+            st.success(f"✅ {category} requirements met.")
+
+    st.divider()
+    if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch'):
+        if db_utils.produce_stock(product_id, substitutions=substitutions_to_make):
+            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} with details!", "📦")
+            st.rerun()
 
 def handle_undo_stock(product_id, product_name):
     """Callback to decrease stock."""

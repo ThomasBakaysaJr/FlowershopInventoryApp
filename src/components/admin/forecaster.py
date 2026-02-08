@@ -142,3 +142,25 @@ def render_forecaster():
         )
     else:
         st.info("No ingredients required for the selected production.")
+
+    # --- Generic Forecast ---
+    st.divider()
+    st.subheader("🧩 Generic Category Forecast")
+    st.caption("Buying guide for generic requirements (e.g. 'Any Rose').")
+    
+    generic_df = db_utils.get_forecast_generic_requirements(start_date, end_date)
+    
+    if not generic_df.empty:
+        # Add a column for current stock of that category
+        inventory_df = db_utils.get_inventory()
+        
+        def get_cat_stock(cat):
+            if inventory_df.empty: return 0
+            return inventory_df[inventory_df['sub_category'] == cat]['count_on_hand'].sum()
+            
+        generic_df['Current Category Stock'] = generic_df['Category'].apply(get_cat_stock)
+        generic_df['Net Need'] = generic_df['Needed'] - generic_df['Current Category Stock']
+        
+        st.dataframe(generic_df, hide_index=True, width="stretch")
+    else:
+        st.info("No generic requirements found for this period.")
