@@ -63,10 +63,11 @@ def get_inventory() -> pd.DataFrame:
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
 
-def log_production(goal_id: int, substitutions: list = None) -> bool:
+def log_production(goal_id: int, substitutions: list = None, ignore_recipe: bool = False) -> bool:
     """
     Increments production count and deducts inventory (BOM).
     substitutions: List of (item_id, qty_to_deduct) derived from user selection for generics.
+    ignore_recipe: If True, standard recipe items are NOT deducted; only 'substitutions' are used.
     """
     conn = get_connection()
     try:
@@ -90,11 +91,12 @@ def log_production(goal_id: int, substitutions: list = None) -> bool:
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
         
         # 3. Deduct Standard Inventory (Specific Items)
-        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (p_id,))
-        specific_items = cursor.fetchall()
-        
-        for i_id, qty in specific_items:
-            cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+        if not ignore_recipe:
+            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (p_id,))
+            specific_items = cursor.fetchall()
+            
+            for i_id, qty in specific_items:
+                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
             
         # 4. Deduct Substitutions (The Dynamic Part)
         if substitutions:
@@ -1001,7 +1003,7 @@ def get_production_requirements(start_date, end_date) -> pd.DataFrame:
     finally:
         conn.close()
 
-def produce_stock(product_id: int, substitutions: list = None) -> bool:
+def produce_stock(product_id: int, substitutions: list = None, ignore_recipe: bool = False) -> bool:
     """Increments stock_on_hand and deducts inventory (BOM). Logs with goal_id=NULL."""
     conn = get_connection()
     try:
@@ -1018,12 +1020,13 @@ def produce_stock(product_id: int, substitutions: list = None) -> bool:
         cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (NULL, ?)", (product_id,))
         
         # 3. Deduct Inventory
-        # Only deduct Specific items automatically
-        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (product_id,))
-        specific_items = cursor.fetchall()
-        
-        for i_id, qty in specific_items:
-            cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
+        if not ignore_recipe:
+            # Only deduct Specific items automatically
+            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'", (product_id,))
+            specific_items = cursor.fetchall()
+            
+            for i_id, qty in specific_items:
+                cursor.execute("UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?", (qty, i_id))
             
         # 4. Deduct Substitutions (Generic Items)
         if substitutions:

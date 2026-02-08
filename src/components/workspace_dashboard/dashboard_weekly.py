@@ -43,8 +43,7 @@ def trigger_generic_selection_modal(goal_id, generic_reqs):
         inventory_df = db_utils.get_items_by_category(category) 
         
         if inventory_df.empty:
-            st.error(f"No items found for category '{category}' in inventory.")
-            valid_form = False
+            st.warning(f"No items found for category '{category}' in inventory.")
             continue
 
         total_allocated = 0
@@ -71,7 +70,6 @@ def trigger_generic_selection_modal(goal_id, generic_reqs):
         # Validation
         if total_allocated != needed:
             st.warning(f"Selected {total_allocated} / {needed} {category}s.")
-            valid_form = False
         else:
             st.success(f"✅ {category} requirements met.")
 
@@ -79,6 +77,71 @@ def trigger_generic_selection_modal(goal_id, generic_reqs):
     if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch'):
         if db_utils.log_production(goal_id, substitutions=substitutions_to_make):
             st.session_state['weekly_dash_toast'] = ("Production Logged with Details!", "✅")
+            st.rerun()
+
+@st.dialog("📝 Adjust Recipe & Make")
+def trigger_adjustment_modal(goal_id, product_name, product_id):
+    st.write(f"Adjusting ingredients for **{product_name}**.")
+    
+    details = db_utils.get_product_details(product_name)
+    if not details:
+        st.error("Could not load recipe.")
+        return
+
+    if f"adj_goal_{goal_id}" not in st.session_state:
+        initial_items = []
+        for item in details['recipe']:
+            if item['item_id']:
+                initial_items.append({'item_id': item['item_id'], 'name': item['name'], 'qty': item['qty']})
+        st.session_state[f"adj_goal_{goal_id}"] = initial_items
+
+    items = st.session_state[f"adj_goal_{goal_id}"]
+    
+    edited_df = st.data_editor(
+        pd.DataFrame(items),
+        column_config={
+            "name": st.column_config.TextColumn("Ingredient", disabled=True),
+            "qty": st.column_config.NumberColumn("Qty Used", min_value=0, step=1),
+            "item_id": None
+        },
+        hide_index=True,
+        use_container_width=True,
+        key=f"editor_goal_{goal_id}"
+    )
+    
+    st.divider()
+    st.caption("Add Substitution / Extra Item")
+    inventory_df = db_utils.get_inventory()
+    if not inventory_df.empty:
+        inv_options = inventory_df['name'].tolist()
+        inv_map = dict(zip(inventory_df['name'], inventory_df['item_id']))
+        
+        c1, c2, c3 = st.columns([2, 1, 1])
+        with c1:
+            new_item_name = st.selectbox("Item", options=inv_options, key=f"add_sel_g_{goal_id}", label_visibility="collapsed", index=None, placeholder="Select item...")
+        with c2:
+            new_qty = st.number_input("Qty", min_value=1, value=1, key=f"add_qty_g_{goal_id}", label_visibility="collapsed")
+        with c3:
+            if st.button("Add", key=f"add_btn_g_{goal_id}"):
+                if new_item_name:
+                    new_id = inv_map[new_item_name]
+                    existing = next((x for x in st.session_state[f"adj_goal_{goal_id}"] if x['item_id'] == new_id), None)
+                    if existing:
+                        existing['qty'] += new_qty
+                    else:
+                        st.session_state[f"adj_goal_{goal_id}"].append({'item_id': new_id, 'name': new_item_name, 'qty': new_qty})
+                    st.rerun()
+
+    st.divider()
+    if st.button("Confirm & Make", type="primary", width='stretch'):
+        final_items = []
+        for _, row in edited_df.iterrows():
+            if row['qty'] > 0:
+                final_items.append((row['item_id'], row['qty']))
+        
+        if db_utils.log_production(goal_id, substitutions=final_items, ignore_recipe=True):
+            st.session_state['weekly_dash_toast'] = (f"Made 1 {product_name} (Custom)", "🛠️")
+            del st.session_state[f"adj_goal_{goal_id}"]
             st.rerun()
 
 def handle_fulfill_goal(goal_id, product_name):

@@ -35,8 +35,7 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
         inventory_df = db_utils.get_items_by_category(category) 
         
         if inventory_df.empty:
-            st.error(f"No items found for category '{category}' in inventory.")
-            valid_form = False
+            st.warning(f"No items found for category '{category}' in inventory.")
             continue
 
         total_allocated = 0
@@ -61,7 +60,6 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
         
         if total_allocated != needed:
             st.warning(f"Selected {total_allocated} / {needed} {category}s.")
-            valid_form = False
         else:
             st.success(f"✅ {category} requirements met.")
 
@@ -69,6 +67,92 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
     if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch'):
         if db_utils.produce_stock(product_id, substitutions=substitutions_to_make):
             st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} with details!", "📦")
+            st.rerun()
+
+@st.dialog("📝 Adjust Recipe & Make")
+def trigger_adjustment_modal(product_id, product_name):
+    st.write(f"Adjusting ingredients for **{product_name}**.")
+    
+    # 1. Fetch Standard Recipe
+    details = db_utils.get_product_details(product_name)
+    if not details:
+        st.error("Could not load recipe.")
+        return
+
+    # Initialize state for this modal if not present
+    if f"adj_items_{product_id}" not in st.session_state:
+        # Convert recipe to list of dicts for editing
+        # We flatten generics into this list too, so the user sees everything
+        initial_items = []
+        for item in details['recipe']:
+            # If it's a generic requirement (no item_id), we can't pre-fill an ID, 
+            # but we can show it as a placeholder or just skip it and let them add.
+            # Better: Skip generics here, they must be added manually if specific items were used.
+            if item['item_id']:
+                initial_items.append({'item_id': item['item_id'], 'name': item['name'], 'qty': item['qty']})
+        st.session_state[f"adj_items_{product_id}"] = initial_items
+
+    # 2. Render Editable List
+    items = st.session_state[f"adj_items_{product_id}"]
+    
+    # Use Data Editor for quick adjustments
+    edited_df = st.data_editor(
+        pd.DataFrame(items),
+        column_config={
+            "name": st.column_config.TextColumn("Ingredient", disabled=True),
+            "qty": st.column_config.NumberColumn("Qty Used", min_value=0, step=1),
+            "item_id": None # Hide ID
+        },
+        hide_index=True,
+        use_container_width=True,
+        key=f"editor_{product_id}"
+    )
+    
+    # 3. Add Extra Item Section
+    st.divider()
+    st.caption("Add Substitution / Extra Item")
+    inventory_df = db_utils.get_inventory()
+    if not inventory_df.empty:
+        # Create a lookup for names
+        inv_options = inventory_df['name'].tolist()
+        inv_map = dict(zip(inventory_df['name'], inventory_df['item_id']))
+        
+        c1, c2, c3 = st.columns([2, 1, 1])
+        with c1:
+            new_item_name = st.selectbox("Item", options=inv_options, key=f"add_sel_{product_id}", label_visibility="collapsed", index=None, placeholder="Select item...")
+        with c2:
+            new_qty = st.number_input("Qty", min_value=1, value=1, key=f"add_qty_{product_id}", label_visibility="collapsed")
+        with c3:
+            if st.button("Add", key=f"add_btn_{product_id}"):
+                if new_item_name:
+                    # Add to session state list
+                    new_id = inv_map[new_item_name]
+                    # Check if exists
+                    existing = next((x for x in st.session_state[f"adj_items_{product_id}"] if x['item_id'] == new_id), None)
+                    if existing:
+                        existing['qty'] += new_qty
+                    else:
+                        st.session_state[f"adj_items_{product_id}"].append({'item_id': new_id, 'name': new_item_name, 'qty': new_qty})
+                    st.rerun()
+
+    st.divider()
+    if st.button("Confirm & Make", type="primary", width='stretch'):
+        # Convert edited DF back to list
+        final_items = []
+        # We iterate the edited_df to get the values from the widget
+        for _, row in edited_df.iterrows():
+            if row['qty'] > 0:
+                final_items.append((row['item_id'], row['qty']))
+        
+        # We also need to include any newly added items that might not be in the editor yet 
+        # (Actually, st.data_editor updates session state? No, it returns a new DF)
+        # The "Add" button updates the source list, which re-renders the editor.
+        # So edited_df IS the source of truth for the *next* render, but we need to capture it here.
+        
+        if db_utils.produce_stock(product_id, substitutions=final_items, ignore_recipe=True):
+            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} (Custom)", "🛠️")
+            # Cleanup
+            del st.session_state[f"adj_items_{product_id}"]
             st.rerun()
 
 def handle_undo_stock(product_id, product_name):
@@ -179,14 +263,19 @@ def render_card(row):
                 st.caption(f"({diff} deficit)")
 
         with c_act:
-            # Make Button (Adds to Stock)
-            st.button(
-                "➕", 
-                key=f"make_stock_{row['product_id']}", 
-                width="stretch",
-                on_click=handle_make_stock,
-                args=(int(row['product_id']), row['Product'])
-            )
+            # Split Make actions
+            b1, b2 = st.columns([2, 1], gap="small")
+            with b1:
+                st.button(
+                    "➕", 
+                    key=f"make_stock_{row['product_id']}", 
+                    width="stretch",
+                    on_click=handle_make_stock,
+                    args=(int(row['product_id']), row['Product'])
+                )
+            with b2:
+                if st.button("📝", key=f"adj_stock_{row['product_id']}", help="Make with Adjustments"):
+                    trigger_adjustment_modal(int(row['product_id']), row['Product'])
             
             # Undo Button (Removes from Stock)
             st.button(
