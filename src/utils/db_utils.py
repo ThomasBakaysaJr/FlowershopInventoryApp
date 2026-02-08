@@ -1176,7 +1176,7 @@ def get_items_by_category(category: str) -> pd.DataFrame:
     conn = get_connection()
     try:
         return pd.read_sql_query(
-            "SELECT item_id, name, count_on_hand FROM inventory WHERE sub_category = ? COLLATE NOCASE AND count_on_hand > 0", 
+            "SELECT item_id, name, count_on_hand FROM inventory WHERE sub_category = ? COLLATE NOCASE", 
             conn, 
             params=(category,)
         )

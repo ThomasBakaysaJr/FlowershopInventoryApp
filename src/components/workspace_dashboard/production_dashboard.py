@@ -35,7 +35,7 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
         inventory_df = db_utils.get_items_by_category(category) 
         
         if inventory_df.empty:
-            st.error(f"No {category} in stock!")
+            st.error(f"No items found for category '{category}' in inventory.")
             valid_form = False
             continue
 
@@ -47,11 +47,9 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
             with cols[0]:
                 st.write(f"{item['name']} (Stock: {item['count_on_hand']})")
             with cols[1]:
-                max_val = int(item['count_on_hand']) if pd.notna(item['count_on_hand']) else 0
                 allocated = st.number_input(
                     "Use", 
                     min_value=0, 
-                    max_value=max_val,
                     step=1,
                     key=f"stock_alloc_{product_id}_{item['item_id']}",
                     label_visibility="collapsed"
