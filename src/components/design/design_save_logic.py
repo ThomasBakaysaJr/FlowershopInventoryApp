@@ -81,7 +81,7 @@ def render_overwrite_dialog(prod_name, final_price, uploaded_file, recipe_items,
         st.warning(f"Product '{prod_name}' already exists. Overwrite?")
         col_yes, col_no = st.columns(2)
         with col_yes:
-            if st.button("Yes, Overwrite"):
+            if st.button("Yes, Overwrite", width="stretch"):
                 # Determine Target ID
                 target_id = st.session_state.get('editing_product_id')
                 
@@ -95,6 +95,6 @@ def render_overwrite_dialog(prod_name, final_price, uploaded_file, recipe_items,
                 execute_save(prod_name, final_price, uploaded_file, recipe_items, target_id=target_id, rollover_stock=rollover_stock, category=category, migrate_goals=migrate_goals, goal_date=goal_date, goal_qty=goal_qty)
                 
         with col_no:
-            if st.button("Cancel"):
+            if st.button("Cancel", width="stretch"):
                 st.session_state.confirm_overwrite = False
                 st.rerun()

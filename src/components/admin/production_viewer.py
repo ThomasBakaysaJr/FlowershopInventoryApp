@@ -82,7 +82,7 @@ def render_production_viewer():
                     )
                     
                     if new_val != row['qty_ordered']:
-                        if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity"):
+                        if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity", width="stretch"):
                             result = db_utils.update_goal_quantity(row['goal_id'], new_val)
                             if result["success"]:
                                 if result["overage"] > 0:
@@ -97,14 +97,14 @@ def render_production_viewer():
                     if overage_key in st.session_state:
                         overage_amt = st.session_state[overage_key]
                         st.warning(f"⚠️ Excess: {overage_amt}")
-                        if st.button(f"Move {overage_amt} to Stock", key=f"rel_{row['goal_id']}"):
+                        if st.button(f"Move {overage_amt} to Stock", key=f"rel_{row['goal_id']}", width="stretch"):
                             db_utils.release_overage_to_stock(row['goal_id'], overage_amt)
                             del st.session_state[overage_key]
                             st.success("Moved to stock!")
                             st.rerun()
         
                 with c5:
-                    if st.button("❌", key=f"del_goal_{row['goal_id']}", help="Delete Goal (Returns items to Stock)"):
+                    if st.button("❌", key=f"del_goal_{row['goal_id']}", help="Delete Goal (Returns items to Stock)", width="stretch"):
                         if db_utils.delete_production_goal(row['goal_id']):
                             st.toast("Goal deleted. Completed items returned to Cooler.")
                             st.rerun()

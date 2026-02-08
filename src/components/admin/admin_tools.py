@@ -46,7 +46,7 @@ def render_eod_tools(raw_inventory_df):
         st.write("Paste inventory lists here to update stock.")
         clipboard_text = st.text_area("Paste text here...", height=150, help="Format: Name, Sub-Cat, Qty")
         
-        if st.button("Update Inventory"):
+        if st.button("Update Inventory", width="stretch"):
             if clipboard_text:
                 updated, errors = db_utils.process_clipboard_update(clipboard_text)
                 if updated:
@@ -74,13 +74,14 @@ def render_bulk_operations(raw_inventory_df):
             data=csv_data,
             file_name=f"inventory_export_{time.strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            help="Includes ID to ensure exact matching."
+            help="Includes ID to ensure exact matching.",
+            width="stretch"
         )
         
     with col_up_inv:
         inv_file = st.file_uploader("Upload Inventory (.csv)", type=["csv"], key="inv_upload")
         if inv_file:
-            if st.button("Process Inventory Update", type="primary"):
+            if st.button("Process Inventory Update", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_inventory_upload(inv_file)
                 if count > 0:
                     st.success(f"✅ Successfully updated {count} items!")
@@ -106,13 +107,14 @@ def render_bulk_operations(raw_inventory_df):
             data=prod_csv,
             file_name=f"catalog_export_{time.strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            help="Use this to back up recipes or add new ones."
+            help="Use this to back up recipes or add new ones.",
+            width="stretch"
         )
         
     with col_up_prod:
         prod_file = st.file_uploader("Upload Recipes (.csv)", type=["csv"], key="prod_upload")
         if prod_file:
-            if st.button("Process Recipe Import", type="primary"):
+            if st.button("Process Recipe Import", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_recipe_upload(prod_file)
                 if count > 0:
                     st.success(f"✅ Processed {count} products!")

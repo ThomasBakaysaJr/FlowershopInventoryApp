@@ -88,7 +88,7 @@ def log_production(goal_id: int, substitutions: list = None, ignore_recipe: bool
         cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + 1 WHERE goal_id = ?", (goal_id,))
         
         # Insert Log Entry
-        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
+        cursor.execute("INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (?, ?, 'MAKE')", (goal_id, p_id))
         
         # 3. Deduct Standard Inventory (Specific Items)
         if not ignore_recipe:
@@ -504,15 +504,24 @@ def undo_production(goal_id: int) -> bool:
         res = cursor.fetchone()
         if not res:
             return False
-        p_id = res[0]
+        goal_p_id = res[0] # Current Goal Product ID (for Stock returns)
         
         # Find latest log entry SPECIFICALLY for this goal
-        cursor.execute("SELECT log_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1", (goal_id,))
+        cursor.execute("SELECT log_id, action_type, product_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1", (goal_id,))
         log_res = cursor.fetchone()
         
         if log_res:
-            l_id = log_res[0]
+            l_id, action_type, log_p_id = log_res
             logger.info(f"undo_production: Reverting production for goal_id {goal_id}, log_id {l_id}")
+            
+            # If this was a PACK action (Cooler -> Order), we must return to Cooler, not Raw Inventory
+            if action_type == 'PACK':
+                cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
+                cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?", (goal_id,))
+                # Return to the CURRENT Goal's product stock (handles migration correctly)
+                cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?", (goal_p_id,))
+                conn.commit()
+                return True
             
             # Delete the log entry
             cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
@@ -520,8 +529,9 @@ def undo_production(goal_id: int) -> bool:
             # Decrement the goal
             cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?", (goal_id,))
             
-            # Add back to Inventory (Bill of Materials)
-            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (p_id,))
+            # Add back to Inventory (Bill of Materials) 
+            # CRITICAL: Use log_p_id (Original Version) to restore correct ingredients
+            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (log_p_id,))
             recipe_items = cursor.fetchall()
             
             for i_id, qty in recipe_items:
@@ -537,7 +547,7 @@ def undo_production(goal_id: int) -> bool:
     finally:
         conn.close()
 
-def fulfill_goal(goal_id: int) -> bool:
+def fulfill_goal(goal_id: int, qty: int = 1) -> bool:
     """Decrements stock_on_hand and increments qty_fulfilled for a goal (Cooler -> Order)."""
     conn = get_connection()
     try:
@@ -555,24 +565,25 @@ def fulfill_goal(goal_id: int) -> bool:
         if not res: return False
         stock, p_id, category = res
         
-        if stock <= 0:
-            logger.warning(f"fulfill_goal: Attempted to fulfill goal {goal_id} with 0 stock.")
+        if stock < qty:
+            logger.warning(f"fulfill_goal: Attempted to fulfill goal {goal_id} with {qty} items (Stock: {stock}).")
             return False
             
         # 1. Update Product Stock (Remove from Cooler)
-        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand - 1 WHERE product_id = ?", (p_id,))
+        cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand - ? WHERE product_id = ?", (qty, p_id))
         
         # 2. Update Goal (Mark as Fulfilled)
-        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + 1 WHERE goal_id = ?", (goal_id,))
+        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + ? WHERE goal_id = ?", (qty, goal_id))
         
-        # 3. Log it
-        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)", (goal_id, p_id))
+        # 3. Log it (Multiple entries for granular undo)
+        logs = [(goal_id, p_id, 'PACK') for _ in range(qty)]
+        cursor.executemany("INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (?, ?, ?)", logs)
         
         # 4. Auto-Archive One-Offs if complete
         if category == 'One-Off':
             # Check if stock is depleted
-            # Note: We just decremented stock, so we check the new value (stock - 1)
-            new_stock = stock - 1
+            # Note: We just decremented stock, so we check the new value
+            new_stock = stock - qty
             
             # Check for any remaining unfulfilled goals
             cursor.execute("SELECT COUNT(*) FROM production_goals WHERE product_id = ? AND qty_fulfilled < qty_ordered", (p_id,))
@@ -660,7 +671,7 @@ def get_forecast_initial_data(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
 
         query = """
-        SELECT p.product_id, p.display_name as Product, p.active, COALESCE(SUM(pg.qty_ordered), 0) as Expected
+        SELECT p.product_id, p.display_name as Product, p.active, COALESCE(SUM(MAX(0, pg.qty_ordered - pg.qty_fulfilled)), 0) as Expected
         FROM products p
         LEFT JOIN production_goals pg ON p.product_id = pg.product_id AND pg.due_date BETWEEN ? AND ?
         WHERE p.active = 1 OR pg.goal_id IS NOT NULL
@@ -988,7 +999,7 @@ def get_production_requirements(start_date, end_date) -> pd.DataFrame:
             p.image_data, 
             p.active, 
             MAX(p.stock_on_hand) as stock_on_hand,
-            COALESCE(SUM(pg.qty_ordered), 0) as required_qty
+            COALESCE(SUM(MAX(0, pg.qty_ordered - pg.qty_fulfilled)), 0) as required_qty
         FROM products p
         LEFT JOIN production_goals pg ON p.product_id = pg.product_id AND pg.due_date BETWEEN ? AND ?
         WHERE p.active = 1 OR pg.goal_id IS NOT NULL
@@ -1017,7 +1028,7 @@ def produce_stock(product_id: int, substitutions: list = None, ignore_recipe: bo
             return False
         
         # 2. Log it (goal_id is NULL for stock production)
-        cursor.execute("INSERT INTO production_logs (goal_id, product_id) VALUES (NULL, ?)", (product_id,))
+        cursor.execute("INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (NULL, ?, 'STOCK')", (product_id,))
         
         # 3. Deduct Inventory
         if not ignore_recipe:
@@ -1049,13 +1060,18 @@ def undo_stock_production(product_id: int) -> bool:
         cursor = conn.cursor()
         
         # Find latest log for this product with NULL goal_id (meaning it was a stock production)
-        cursor.execute("SELECT log_id FROM production_logs WHERE product_id = ? AND goal_id IS NULL ORDER BY log_id DESC LIMIT 1", (product_id,))
+        cursor.execute("SELECT log_id, action_type FROM production_logs WHERE product_id = ? AND goal_id IS NULL ORDER BY log_id DESC LIMIT 1", (product_id,))
         res = cursor.fetchone()
         
         if not res:
             return False
         
-        log_id = res[0]
+        log_id, action_type = res
+
+        # Safety: Never undo a PACK action here (it implies a deleted goal, not stock production)
+        if action_type == 'PACK':
+            logger.warning(f"undo_stock_production: Skipped PACK log {log_id}. This log should have been deleted when its goal was removed.")
+            return False
         
         # 1. Delete Log
         cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
@@ -1127,9 +1143,11 @@ def delete_production_goal(goal_id: int) -> bool:
                 logger.info(f"delete_production_goal: Returning {made_count} items to stock for product {p_id}")
                 cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?", (made_count, p_id))
                 
-                # 3. Detach the logs so we keep the history of the work, but unlink it from the deleted goal
-                # Setting goal_id to NULL makes them look like "Stock Production" in history
-                cursor.execute("UPDATE production_logs SET goal_id = NULL WHERE goal_id = ?", (goal_id,))
+                # 3. Handle Logs
+                # A. 'PACK' logs (Stock -> Goal) should be DELETED. Reversing the goal means putting them back in stock, effectively cancelling the move.
+                cursor.execute("DELETE FROM production_logs WHERE goal_id = ? AND action_type = 'PACK'", (goal_id,))
+                # B. 'MAKE' logs (Inventory -> Goal) should be DETACHED. They become valid "Stock Production" history.
+                cursor.execute("UPDATE production_logs SET goal_id = NULL WHERE goal_id = ? AND action_type != 'PACK'", (goal_id,))
         
         # 4. Delete the goal itself
         cursor.execute("DELETE FROM production_goals WHERE goal_id = ?", (goal_id,))
@@ -1171,6 +1189,9 @@ def get_recipe_requirements(product_id: int) -> dict:
                 result['specific_items'].append((item_id, qty))
                 
         return result
+    except sqlite3.Error as e:
+        logger.error(f"get_recipe_requirements: {e}")
+        return {'has_generics': False, 'specific_items': [], 'generic_items': []}
     finally:
         conn.close()
 
@@ -1183,6 +1204,9 @@ def get_items_by_category(category: str) -> pd.DataFrame:
             conn, 
             params=(category,)
         )
+    except Exception as e:
+        logger.error(f"get_items_by_category: {e}")
+        return pd.DataFrame()
     finally:
         conn.close()
 
@@ -1206,6 +1230,9 @@ def get_forecast_generic_requirements(start_date, end_date):
             GROUP BY r.requirement_value
         """
         return pd.read_sql_query(query, conn, params=(s_date, e_date))
+    except Exception as e:
+        logger.error(f"get_forecast_generic_requirements: {e}")
+        return pd.DataFrame()
     finally:
         conn.close()
 
@@ -1249,18 +1276,21 @@ def release_overage_to_stock(goal_id: int, qty_to_release: int) -> bool:
         # 3. Increase General Stock
         cursor.execute("UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?", (qty_to_release, p_id))
         
-        # 4. Detach Logs (optional but good for history)
-        # We find the N most recent logs for this goal and set goal_id = NULL
-        cursor.execute("""
-            UPDATE production_logs 
-            SET goal_id = NULL 
-            WHERE log_id IN (
-                SELECT log_id FROM production_logs 
-                WHERE goal_id = ? 
-                ORDER BY log_id DESC 
-                LIMIT ?
-            )
-        """, (goal_id, qty_to_release))
+        # 4. Handle Logs (LIFO)
+        # Identify the specific logs affected by this release
+        cursor.execute("SELECT log_id, action_type FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT ?", (goal_id, qty_to_release))
+        logs = cursor.fetchall()
+        
+        pack_ids = [str(row[0]) for row in logs if row[1] == 'PACK']
+        make_ids = [str(row[0]) for row in logs if row[1] != 'PACK']
+        
+        if pack_ids:
+            # Delete PACK logs (Reversing the move from Cooler -> Goal)
+            cursor.execute(f"DELETE FROM production_logs WHERE log_id IN ({','.join(pack_ids)})")
+            
+        if make_ids:
+            # Detach MAKE logs (Converting Goal Production -> Stock Production)
+            cursor.execute(f"UPDATE production_logs SET goal_id = NULL, action_type = 'STOCK' WHERE log_id IN ({','.join(make_ids)})")
         
         conn.commit()
         return True

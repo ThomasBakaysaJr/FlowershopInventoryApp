@@ -105,7 +105,7 @@ def trigger_adjustment_modal(goal_id, product_name, product_id):
             "item_id": None
         },
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         key=f"editor_goal_{goal_id}"
     )
     
@@ -122,7 +122,7 @@ def trigger_adjustment_modal(goal_id, product_name, product_id):
         with c2:
             new_qty = st.number_input("Qty", min_value=1, value=1, key=f"add_qty_g_{goal_id}", label_visibility="collapsed")
         with c3:
-            if st.button("Add", key=f"add_btn_g_{goal_id}"):
+            if st.button("Add", key=f"add_btn_g_{goal_id}", width="stretch"):
                 if new_item_name:
                     new_id = inv_map[new_item_name]
                     existing = next((x for x in st.session_state[f"adj_goal_{goal_id}"] if x['item_id'] == new_id), None)
@@ -144,10 +144,13 @@ def trigger_adjustment_modal(goal_id, product_name, product_id):
             del st.session_state[f"adj_goal_{goal_id}"]
             st.rerun()
 
-def handle_fulfill_goal(goal_id, product_name):
+def handle_fulfill_goal(goal_id, product_name, qty=1):
     """Fulfills a goal using existing Cooler Stock."""
-    if db_utils.fulfill_goal(int(goal_id)):
-        st.session_state['weekly_dash_toast'] = (f"Packed 1 {product_name} from Cooler!", "📦")
+    if db_utils.fulfill_goal(int(goal_id), qty=qty):
+        if qty > 1:
+            st.session_state['weekly_dash_toast'] = (f"Packed {qty} {product_name}s!", "🚀")
+        else:
+            st.session_state['weekly_dash_toast'] = (f"Packed 1 {product_name} from Cooler!", "📦")
 
 def handle_undo_production(goal_id, product_name):
     # Standard Undo Logic
@@ -229,7 +232,7 @@ def render_grid(week_data, key_suffix=""):
                         
                         with col_img:
                             if pd.notna(row['image_data']):
-                                st.image(row['image_data'], width="stretch")
+                                st.image(row['image_data'], use_container_width=True)
                         
                         with col_add:
                             # Button Logic:
@@ -271,13 +274,25 @@ def render_grid(week_data, key_suffix=""):
                             if needed > 0:
                                 if stock > 0:
                                     st.caption(f"In Cooler: {stock}")
+                                    
+                                    # Pack All Option
+                                    packable = min(stock, needed)
+                                    if packable > 1:
+                                        st.button(
+                                            f"🚀 Pack {packable}", 
+                                            key=f"pack_all_{row['goal_id']}", 
+                                            width="stretch",
+                                            help="Pack all available items for this goal",
+                                            on_click=handle_fulfill_goal,
+                                            args=(row['goal_id'], row['Product'], packable)
+                                        )
                                 else:
                                     st.caption(":red[Empty Cooler]")
 
                         with col_undo:
                             # Only allow undo if something has been made this week
                             can_undo = row['qty_fulfilled'] > 0
-                            with st.popover("➖", disabled=not can_undo, width="stretch", help="Undo last production"):
+                            with st.popover("➖", disabled=not can_undo, use_container_width=True, help="Undo last production"):
                                 st.write("⚠️ **Confirm Undo?**")
                                 st.button(
                                     "Confirm", 

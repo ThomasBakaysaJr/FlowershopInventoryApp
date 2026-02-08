@@ -27,7 +27,7 @@ def render_goal_setter():
             with col_qty:
                 qty = st.number_input("Quantity", min_value=1, value=10, step=1)
             
-            submitted = st.form_submit_button("Add to Schedule", type="primary")
+            submitted = st.form_submit_button("Add to Schedule", type="primary", width="stretch")
             
             if submitted:
                 if db_utils.add_production_goal(selected_id, str(due_date), qty):

@@ -104,7 +104,7 @@ def trigger_adjustment_modal(product_id, product_name):
             "item_id": None # Hide ID
         },
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         key=f"editor_{product_id}"
     )
     
@@ -123,7 +123,7 @@ def trigger_adjustment_modal(product_id, product_name):
         with c2:
             new_qty = st.number_input("Qty", min_value=1, value=1, key=f"add_qty_{product_id}", label_visibility="collapsed")
         with c3:
-            if st.button("Add", key=f"add_btn_{product_id}"):
+            if st.button("Add", key=f"add_btn_{product_id}", width="stretch"):
                 if new_item_name:
                     # Add to session state list
                     new_id = inv_map[new_item_name]
@@ -227,7 +227,7 @@ def render_card(row):
         
         with c_img:
             if pd.notna(row['image_data']):
-                st.image(row['image_data'], width="stretch")
+                st.image(row['image_data'], use_container_width=True)
             else:
                 st.text("No Image")
 
@@ -274,7 +274,7 @@ def render_card(row):
                     args=(int(row['product_id']), row['Product'])
                 )
             with b2:
-                if st.button("📝", key=f"adj_stock_{row['product_id']}", help="Make with Adjustments"):
+                if st.button("📝", key=f"adj_stock_{row['product_id']}", help="Make with Adjustments", width="stretch"):
                     trigger_adjustment_modal(int(row['product_id']), row['Product'])
             
             # Undo Button (Removes from Stock)

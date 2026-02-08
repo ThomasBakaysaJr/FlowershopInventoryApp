@@ -135,7 +135,7 @@ def render_stock_levels(raw_inventory_df):
             )
             st.warning(f"You have unsaved changes.", icon="⚠️")
 
-        if st.button("💾 Save Changes", key="save_inventory_changes", type="primary" if changes_count > 0 else "secondary"):
+        if st.button("💾 Save Changes", key="save_inventory_changes", type="primary" if changes_count > 0 else "secondary", width="stretch"):
             perform_save()
     else:
         st.info("Inventory is currently empty.")

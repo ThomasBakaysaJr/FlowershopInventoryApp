@@ -1,3 +1,7 @@
+2# AI CONTEXT: DEVELOPMENT RULES
+# This file outlines the coding standards, database constraints, and best practices.
+# For the project structure and file map, please refer to gemini.md.
+
 # AI Development Guidelines for University Flowers Production Dashboard
 
 ## 1. Project Context

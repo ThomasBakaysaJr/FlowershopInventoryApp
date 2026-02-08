@@ -43,7 +43,7 @@ def render_settings_panel():
     
     st.divider()
     
-    if st.button("💾 Save Settings", type="primary"):
+    if st.button("💾 Save Settings", type="primary", width="stretch"):
         # Reconstruct settings object
         new_settings = settings.copy()
         

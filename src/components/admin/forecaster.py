@@ -23,7 +23,7 @@ def render_forecaster():
     if "fc_reset_counter" not in st.session_state:
         st.session_state.fc_reset_counter = 0
 
-    if st.button("🔄 Reset to Actuals", help="Reloads the table with actual values from the database."):
+    if st.button("🔄 Reset to Actuals", help="Reloads the table with actual values from the database.", width="stretch"):
         st.session_state.fc_reset_counter += 1
         st.rerun()
 
@@ -138,7 +138,8 @@ def render_forecaster():
             data=csv,
             file_name=f"shopping_list_{datetime.date.today()}.csv",
             mime="text/csv",
-            type="primary"
+            type="primary",
+            width="stretch"
         )
     else:
         st.info("No ingredients required for the selected production.")
