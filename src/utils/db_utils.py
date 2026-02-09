@@ -14,38 +14,6 @@ DB_PATH = 'inventory.db'
 def get_connection() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
-def get_weekly_production_goals() -> pd.DataFrame:
-    """Groups production goals by the start of the week for easier planning."""
-    if not os.path.exists(DB_PATH):
-        return pd.DataFrame()
-    
-    conn = None
-    try:
-        conn = get_connection()
-        query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
-        FROM production_goals pg
-        JOIN products p ON pg.product_id = p.product_id
-        WHERE pg.qty_fulfilled < pg.qty_ordered OR pg.due_date >= DATE('now', '-30 days')
-        """
-        df = pd.read_sql_query(query, conn)
-        
-        if df.empty:
-            return df
-
-        # Convert to datetime and group by week (starting Monday)
-        df['due_date'] = pd.to_datetime(df['due_date'])
-        df['week_start_dt'] = df['due_date'].dt.to_period('W').apply(lambda r: r.start_time)
-        df['Week Starting'] = df['week_start_dt'].dt.strftime('%b %d, %Y')
-        df['week_start_iso'] = df['week_start_dt'].dt.strftime('%Y-%m-%d')
-        
-        return df.sort_values(['week_start_iso', 'due_date', 'Product'])
-    except Exception as e:
-        logger.error(f"get_weekly_production_goals: Error fetching goals: {e}")
-        return pd.DataFrame()
-    finally:
-        if conn: conn.close()
-
 def get_inventory() -> pd.DataFrame:
     try:
         if not os.path.exists(DB_PATH):
@@ -972,7 +940,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
         
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?

@@ -3,20 +3,16 @@ import pandas as pd
 import datetime
 import math
 from src.utils import db_utils
+from src.components import date_selector
 
 def render_forecaster():
     st.header("🔮 Production Forecaster")
     st.caption("Simulate production scenarios to see inventory requirements.")
 
-    # 1. Date Controls
-    col_start, col_end = st.columns(2)
-    with col_start:
-        start_date = st.date_input("Start Date", value=datetime.date.today(), key="fc_start")
-    with col_end:
-        end_date = st.date_input("End Date", value=datetime.date.today() + datetime.timedelta(days=7), key="fc_end")
-
+    # 1. Date Selection
+    start_date, end_date = date_selector.render("fc")
+    
     if start_date > end_date:
-        st.error("Start date must be before end date.")
         return
 
     # 2. Reset Logic

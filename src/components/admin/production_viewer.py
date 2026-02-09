@@ -2,23 +2,17 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.utils import db_utils
+from src.components import date_selector
 
 @st.fragment(run_every=10)
 def render_production_viewer():
     st.header("📅 Production Manager")
     
-    # 1. Date Controls
-    col_start, col_end = st.columns(2)
-    with col_start:
-        start_date = st.date_input("Start Date", value=datetime.date.today())
-    with col_end:
-        end_date = st.date_input("End Date", value=datetime.date.today() + datetime.timedelta(days=7))
-
+    # 1. Date Selection
+    start_date, end_date = date_selector.render("prod_view")
+    
     if start_date > end_date:
-        st.error("Start date must be before end date.")
         return
-
-    st.subheader(f"Displaying: {start_date.strftime('%b %d, %Y')} – {end_date.strftime('%b %d, %Y')}")
 
     # 2. Fetch Data
     # Get list of products that are either active OR have goals in this range

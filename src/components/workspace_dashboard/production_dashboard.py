@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.utils import db_utils
-from src.components import recipe_display
+from src.components import recipe_display, date_selector
 
 def handle_make_stock(product_id, product_name):
     """Callback to increase stock."""
@@ -173,39 +173,11 @@ def render():
     st.subheader("📦 Cooler Production Dashboard")
     st.caption("Manage 'Cooler Stock' (Finished Goods). Making items here deducts raw inventory and increases stock on hand.")
     
-    # --- Date Selection Logic ---
-    if 'prod_dash_start' not in st.session_state:
-        st.session_state.prod_dash_start = datetime.date.today()
-    if 'prod_dash_end' not in st.session_state:
-        st.session_state.prod_dash_end = datetime.date.today() + datetime.timedelta(days=7)
-
-    # Layout: Quick Buttons (Left) | Date Pickers (Right)
-    col_btns, col_dates = st.columns([1.5, 2], vertical_alignment="bottom")
+    # --- Date Selection ---
+    start_date, end_date = date_selector.render("prod_dash")
     
-    with col_btns:
-        st.write("Quick Select:")
-        b_col1, b_col2, b_col3 = st.columns(3, gap="small")
-        if b_col1.button("Today", width="stretch"):
-            st.session_state.prod_dash_start = datetime.date.today()
-            st.session_state.prod_dash_end = datetime.date.today()
-            st.rerun()
-        if b_col2.button("This Week", width="stretch"):
-            st.session_state.prod_dash_start = datetime.date.today()
-            st.session_state.prod_dash_end = datetime.date.today() + datetime.timedelta(days=6)
-            st.rerun()
-        if b_col3.button("This Month", width="stretch"):
-            st.session_state.prod_dash_start = datetime.date.today()
-            st.session_state.prod_dash_end = datetime.date.today() + datetime.timedelta(days=30)
-            st.rerun()
-
-    with col_dates:
-        d_col1, d_col2 = st.columns(2)
-        d_col1.date_input("Start", key="prod_dash_start")
-        d_col2.date_input("End", key="prod_dash_end")
-
-    start_str = st.session_state.prod_dash_start.strftime('%b %d, %Y')
-    end_str = st.session_state.prod_dash_end.strftime('%b %d, %Y')
-    st.subheader(f"Displaying: {start_str} – {end_str}")
+    if start_date > end_date:
+        return
 
     # Search Bar
     c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
