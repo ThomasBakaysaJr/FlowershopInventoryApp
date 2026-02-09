@@ -62,7 +62,7 @@ else:
 
         st.segmented_control(
             "Workspace Navigation",
-            options=["📦 Production Dashboard", "📅 Upcoming Work", "🖩 Calculator"],
+            options=["📦 Production Dashboard", "📅 Upcoming Orders", "🖩 Calculator"],
             key="nav_workspace",
             label_visibility="collapsed"
         )
@@ -70,7 +70,7 @@ else:
         if st.session_state.nav_workspace == "📦 Production Dashboard":
             production_dashboard.render()
 
-        elif st.session_state.nav_workspace == "📅 Upcoming Work":
+        elif st.session_state.nav_workspace == "📅 Upcoming Orders":
             workspace_dashboard.dashboard.render_designer_dashboard()
             
         elif st.session_state.nav_workspace == "🖩 Calculator":

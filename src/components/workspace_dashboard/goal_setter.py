@@ -9,7 +9,7 @@ def render_goal_setter():
     if products_df.empty:
         return
 
-    with st.expander("📅 Schedule New Production Goal", expanded=False):
+    with st.expander("📅 Schedule New Order", expanded=False):
         with st.form("add_goal_form"):
             col_prod, col_date, col_qty = st.columns([2, 1, 1])
             

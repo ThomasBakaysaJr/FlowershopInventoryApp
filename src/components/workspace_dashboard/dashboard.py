@@ -4,11 +4,11 @@ from . import dashboard_weekly
 from . import goal_setter
 
 def render_designer_dashboard():
-    dashboard_weekly.render()
+    goal_setter.render_goal_setter()
     
     st.divider()
     
-    goal_setter.render_goal_setter()
+    dashboard_weekly.render()
     
     st.divider()
     recipe_display.render_recipe_display(allow_edit=False)
