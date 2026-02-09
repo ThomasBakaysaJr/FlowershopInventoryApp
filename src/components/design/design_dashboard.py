@@ -77,7 +77,8 @@ def render_design_tab(inventory_df):
                     'qty': ing['qty'],
                     'cost': cost,
                     'type': ing.get('type', 'Specific'),
-                    'val': ing.get('val')
+                    'val': ing.get('val'),
+                    'note': ing.get('note')
                 })
             
             # Track that we are editing this specific product

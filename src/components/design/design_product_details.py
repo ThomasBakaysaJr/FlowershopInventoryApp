@@ -34,7 +34,8 @@ def render(container, inventory_df):
                         'qty': ing['qty'],
                         'cost': cost,
                         'type': ing.get('type', 'Specific'),
-                        'val': ing.get('val')
+                        'val': ing.get('val'),
+                        'note': ing.get('note')
                     })
                 
                 # Update Pricing

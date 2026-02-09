@@ -223,7 +223,8 @@ def export_products_csv() -> str:
         SELECT p.display_name as Product, p.selling_price as Price, p.category as Type, 
                r.item_id, 
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
-               r.qty_needed as Qty
+               r.qty_needed as Qty,
+               r.note as Note
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -307,6 +308,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     item_id = None
                     req_type = 'Specific'
                     req_val = None
+                    note = str(row.get('note', '')).strip() or None
                     ing_name = str(row.get('ingredient', '')).strip()
                     
                     # Strategy 1: Lookup by ID (Preferred)
@@ -335,7 +337,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                             id_ref = row.get('item_id', 'N/A')
                             raise ValueError(f"Ingredient not found in Inventory (Name: '{ing_name}', ID: {id_ref}).")
                     
-                    recipe_items.append((item_id, qty, req_type, req_val))
+                    recipe_items.append((item_id, qty, req_type, req_val, note))
                 
                 if not recipe_items:
                     errors.append(f"Skipped '{product_name}': No valid ingredients.")
@@ -370,15 +372,15 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
-                    for item_id, q, r_type, r_val in recipe_items:
-                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) VALUES (?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val))
+                    for item_id, q, r_type, r_val, note in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 else:
                     # INSERT
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand) VALUES (?, ?, ?, ?, 1, 0)", 
                                    (product_name, price, new_image_bytes, cat))
                     new_id = cursor.lastrowid
-                    for item_id, q, r_type, r_val in recipe_items:
-                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) VALUES (?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val))
+                    for item_id, q, r_type, r_val, note in recipe_items:
+                        cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 
                 created_count += 1
                 
@@ -446,14 +448,16 @@ def update_product_recipe(
             if isinstance(item, tuple):
                 item_id, qty = item
                 req_type, req_val = 'Specific', None
+                note = None
             elif isinstance(item, dict):
                 item_id = item.get('id') or item.get('item_id')
                 qty = item.get('qty')
                 req_type = item.get('type', 'Specific')
                 req_val = item.get('val') or item.get('value')
+                note = item.get('note')
 
-            cursor.execute("""INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) 
-                              VALUES (?, ?, ?, ?, ?)""", (new_p_id, item_id, qty, req_type, req_val))
+            cursor.execute("""INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) 
+                              VALUES (?, ?, ?, ?, ?, ?)""", (new_p_id, item_id, qty, req_type, req_val, note))
         
         # 6. Migrate Goals (if requested)
         if migrate_goals:
@@ -649,7 +653,8 @@ def get_all_recipes() -> pd.DataFrame:
         SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, 
                r.item_id, 
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
-               r.qty_needed as Qty
+               r.qty_needed as Qty,
+               r.note as Note
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -804,15 +809,17 @@ def create_new_product(
             if isinstance(item, tuple):
                 item_id, qty = item
                 req_type, req_val = 'Specific', None
+                note = None
             elif isinstance(item, dict):
                 item_id = item.get('id') or item.get('item_id')
                 qty = item.get('qty')
                 req_type = item.get('type', 'Specific')
                 req_val = item.get('val') or item.get('value')
-            
+                note = item.get('note')
+
             cursor.execute("""
-                INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) 
-                VALUES (?, ?, ?, ?, ?)""", (product_id, item_id, qty, req_type, req_val))
+                INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) 
+                VALUES (?, ?, ?, ?, ?, ?)""", (product_id, item_id, qty, req_type, req_val, note))
         
         # 3. Insert Goal (if provided)
         if goal_date and goal_qty > 0:
@@ -874,7 +881,7 @@ def get_product_details(product_name: str) -> Optional[dict]:
         
         # Get Recipe Items
         cursor.execute("""
-            SELECT r.item_id, i.name, r.qty_needed, r.requirement_type, r.requirement_value
+            SELECT r.item_id, i.name, r.qty_needed, r.requirement_type, r.requirement_value, r.note
             FROM recipes r
             LEFT JOIN inventory i ON r.item_id = i.item_id
             WHERE r.product_id = ?
@@ -894,7 +901,8 @@ def get_product_details(product_name: str) -> Optional[dict]:
                 "name": name, 
                 "qty": row[2],
                 "type": row[3],
-                "val": row[4]
+                "val": row[4],
+                "note": row[5]
             })
         
         return {

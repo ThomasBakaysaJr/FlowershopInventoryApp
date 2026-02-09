@@ -55,6 +55,7 @@ def initialize_database(db_path='inventory.db'):
                 qty_needed INTEGER,
                 requirement_type TEXT DEFAULT 'Specific',
                 requirement_value TEXT,
+                note TEXT,
                 FOREIGN KEY(product_id) REFERENCES products(product_id),
                 FOREIGN KEY(item_id) REFERENCES inventory(item_id)
             )

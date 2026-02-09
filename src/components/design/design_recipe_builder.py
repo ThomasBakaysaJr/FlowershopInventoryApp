@@ -8,6 +8,7 @@ def add_ingredient_callback(id_to_item):
     # Retrieve current widget states directly from session state
     item_mode = st.session_state.get("recipe_builder_mode")
     qty = st.session_state.get("recipe_builder_qty", 1)
+    note = st.session_state.get("recipe_builder_note", "").strip()
 
     # Ensure recipe list exists
     if 'new_recipe' not in st.session_state:
@@ -50,6 +51,8 @@ def add_ingredient_callback(id_to_item):
         
         if existing_item:
             existing_item['qty'] += qty
+            if note: # Update note if provided
+                existing_item['note'] = note
             st.toast(f"Updated {item_data['name']} quantity to {existing_item['qty']}", icon="🔄")
         else:
             st.session_state.new_recipe.append({
@@ -58,7 +61,8 @@ def add_ingredient_callback(id_to_item):
                 'qty': qty,
                 'cost': float(item_data['unit_cost']),
                 'type': 'Specific',
-                'val': None
+                'val': None,
+                'note': note
             })
     else:
         selected_cat_name = st.session_state.get("recipe_builder_cat_select")
@@ -86,6 +90,8 @@ def add_ingredient_callback(id_to_item):
             if 'type' not in existing_generic:
                 existing_generic['type'] = 'Category'
                 existing_generic['val'] = selected_cat_name
+            if note:
+                existing_generic['note'] = note
             st.toast(f"Updated Any {selected_cat_name} quantity to {existing_generic['qty']}", icon="🔄")
         else:
             st.session_state.new_recipe.append({
@@ -94,10 +100,12 @@ def add_ingredient_callback(id_to_item):
                 "type": "Category",
                 "val": selected_cat_name,
                 "id": None,
-                "cost": 0.0
+                "cost": 0.0,
+                "note": note
             })
     
     # Reset quantity to 1 for next add
+    st.session_state.recipe_builder_note = ""
     st.session_state.recipe_builder_qty = 1
 
 def render(container, inventory_df):
@@ -109,7 +117,7 @@ def render(container, inventory_df):
             # Filter by Category
             categories = ["All"] + sorted(list(inventory_df['category'].dropna().unique()))
             
-            c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+            c1, c2, c3, c4, c5 = st.columns([1.5, 2, 1.5, 0.8, 0.8])
             
             with c1:
                 # TOGGLE: Specific Item vs Generic Category
@@ -148,9 +156,12 @@ def render(container, inventory_df):
                     selected_cat_name = st.selectbox("Select Sub-Category", sorted(cat_options), label_visibility="collapsed", key="recipe_builder_cat_select")
 
             with c3:
+                st.text_input("Note", placeholder="e.g. 'Short stems'", label_visibility="collapsed", key="recipe_builder_note")
+
+            with c4:
                 qty = st.number_input("Quantity", min_value=1, value=1, label_visibility="collapsed", key="recipe_builder_qty")
             
-            with c4:
+            with c5:
                 st.button("Add", type="primary", width='stretch', on_click=add_ingredient_callback, args=(id_to_item,))
         
         # Display Current Recipe Table
@@ -160,7 +171,7 @@ def render(container, inventory_df):
             recipe_df['Subtotal'] = recipe_df['qty'] * recipe_df['cost']
             
             st.dataframe(
-                recipe_df[['name', 'qty', 'Subtotal']], 
+                recipe_df[['name', 'note', 'qty', 'Subtotal']], 
                 width="stretch",
                 hide_index=True,
                 column_config={"Subtotal": st.column_config.NumberColumn(format="$%.2f")}

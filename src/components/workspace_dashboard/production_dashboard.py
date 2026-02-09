@@ -89,7 +89,7 @@ def trigger_adjustment_modal(product_id, product_name):
             # but we can show it as a placeholder or just skip it and let them add.
             # Better: Skip generics here, they must be added manually if specific items were used.
             if item['item_id']:
-                initial_items.append({'item_id': item['item_id'], 'name': item['name'], 'qty': item['qty']})
+                initial_items.append({'item_id': item['item_id'], 'name': item['name'], 'qty': item['qty'], 'note': item.get('note')})
         st.session_state[f"adj_items_{product_id}"] = initial_items
 
     # 2. Render Editable List
@@ -100,6 +100,7 @@ def trigger_adjustment_modal(product_id, product_name):
         pd.DataFrame(items),
         column_config={
             "name": st.column_config.TextColumn("Ingredient", disabled=True),
+            "note": st.column_config.TextColumn("Note"),
             "qty": st.column_config.NumberColumn("Qty Used", min_value=0, step=1),
             "item_id": None # Hide ID
         },
@@ -132,7 +133,7 @@ def trigger_adjustment_modal(product_id, product_name):
                     if existing:
                         existing['qty'] += new_qty
                     else:
-                        st.session_state[f"adj_items_{product_id}"].append({'item_id': new_id, 'name': new_item_name, 'qty': new_qty})
+                        st.session_state[f"adj_items_{product_id}"].append({'item_id': new_id, 'name': new_item_name, 'qty': new_qty, 'note': None})
                     st.rerun()
 
     st.divider()
