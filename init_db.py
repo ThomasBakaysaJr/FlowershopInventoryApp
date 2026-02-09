@@ -42,7 +42,8 @@ def initialize_database(db_path='inventory.db'):
                 selling_price REAL DEFAULT 0.00,
                 active BOOLEAN DEFAULT 1,
                 stock_on_hand INTEGER DEFAULT 0,
-                category TEXT DEFAULT 'Standard'
+                category TEXT DEFAULT 'Standard',
+                note TEXT
             )
         ''')
 

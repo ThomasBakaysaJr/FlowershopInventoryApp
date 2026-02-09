@@ -254,6 +254,9 @@ def render_card(row, recipes_df):
                 name = "⚠️ " + name
             st.markdown(f"**{name}**")
             
+            if pd.notna(row['note']) and row['note']:
+                st.caption(f"📝 {row['note']}")
+            
             # Stats
             stock = row['stock_on_hand']
             needed = row['required_qty']

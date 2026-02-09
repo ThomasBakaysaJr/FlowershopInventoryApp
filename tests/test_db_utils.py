@@ -70,7 +70,7 @@ def test_fulfill_goal_logic(mock_db):
     conn.close()
     
     # Action 1: Try to fulfill with 0 stock -> Should Fail
-    assert db_utils.fulfill_goal(g_id) is False
+    assert db_utils.fulfill_goal(g_id) == 0
     
     # Action 2: Manually add stock
     conn = sqlite3.connect(mock_db)
@@ -79,7 +79,7 @@ def test_fulfill_goal_logic(mock_db):
     conn.close()
     
     # Action 3: Try to fulfill again -> Should Succeed
-    assert db_utils.fulfill_goal(g_id) is True
+    assert db_utils.fulfill_goal(g_id) == 1
     
     # Verify
     conn = sqlite3.connect(mock_db)

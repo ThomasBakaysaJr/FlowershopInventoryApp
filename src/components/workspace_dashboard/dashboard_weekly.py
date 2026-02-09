@@ -147,9 +147,10 @@ def trigger_adjustment_modal(goal_id, product_name, product_id):
 
 def handle_fulfill_goal(goal_id, product_name, qty=1):
     """Fulfills a goal using existing Cooler Stock."""
-    if db_utils.fulfill_goal(int(goal_id), qty=qty):
-        if qty > 1:
-            st.session_state['weekly_dash_toast'] = (f"Packed {qty} {product_name}s!", "🚀")
+    packed = db_utils.fulfill_goal(int(goal_id), qty=int(qty))
+    if packed > 0:
+        if packed > 1:
+            st.session_state['weekly_dash_toast'] = (f"Packed {packed} {product_name}s!", "🚀")
         else:
             st.session_state['weekly_dash_toast'] = (f"Packed 1 {product_name} from Cooler!", "📦")
 
@@ -270,6 +271,9 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                                 display_name = f"⚠️ {display_name}"
                                 
                             st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
+                            
+                            if pd.notna(row['note']) and row['note']:
+                                st.caption(f"📝 {row['note']}")
                         
                         with col_qty:
                             st.markdown(f"**{needed}** left" if needed > 0 else "Done")
@@ -278,7 +282,7 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                                     st.caption(f"In Cooler: {stock}")
                                     
                                     # Pack All Option
-                                    packable = min(stock, needed)
+                                    packable = int(min(stock, needed)) # Ensure int
                                     if packable > 1:
                                         st.button(
                                             f"🚀 Pack {packable}", 

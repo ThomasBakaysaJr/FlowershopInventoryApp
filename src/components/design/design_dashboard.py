@@ -26,6 +26,7 @@ def render_design_tab(inventory_df):
         st.session_state.pop('editing_product_original_name', None)
         st.session_state.pop('editing_product_id', None)
         st.session_state.new_recipe = []
+        st.session_state.prod_note_input = ""
         
         # Reset Product Type and Goal inputs
         st.session_state.prod_type_input = "Standard"
@@ -57,6 +58,9 @@ def render_design_tab(inventory_df):
         if details:
             # 1. Set Name Input
             st.session_state['prod_name_input'] = details['name']
+            
+            # 1b. Set Note Input
+            st.session_state['prod_note_input'] = details.get('note', "")
             
             # 2. Set Price Input & Prevent auto-overwrite
             st.session_state['final_price_input'] = float(details['price'])
@@ -93,7 +97,7 @@ def render_design_tab(inventory_df):
     col_details, col_builder = st.columns([1, 1.5], gap="large")
 
     # 1. Render Product Details (Left Column)
-    uploaded_file, save_clicked, prod_type, goal_date, goal_qty = design.design_product_details.render(col_details, inventory_df)
+    uploaded_file, save_clicked, prod_type, goal_date, goal_qty, prod_note = design.design_product_details.render(col_details, inventory_df)
     
     # 2. Render Recipe Builder (Right Column)
     design.design_recipe_builder.render(col_builder, inventory_df)
@@ -107,7 +111,7 @@ def render_design_tab(inventory_df):
             rollover_stock = st.session_state.get("rollover_stock_input", True)
             migrate_goals = st.session_state.get("migrate_goals_input", True)
             
-            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type, migrate_goals, goal_date, goal_qty)
+            design.design_save_logic.handle_save_click(prod_name, final_price, uploaded_file, recipe_items, rollover_stock, prod_type, migrate_goals, goal_date, goal_qty, prod_note)
 
         # 4. Confirmation Dialog for Overwrite
         design.design_save_logic.render_overwrite_dialog(
@@ -119,5 +123,6 @@ def render_design_tab(inventory_df):
             prod_type,
             st.session_state.get("migrate_goals_input", True),
             goal_date,
-            goal_qty
+            goal_qty,
+            prod_note
         )

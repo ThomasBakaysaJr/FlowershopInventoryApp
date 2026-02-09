@@ -50,6 +50,9 @@ def render(container, inventory_df):
                 if details.get('category'):
                     st.session_state.prod_type_input = details['category']
                 
+                # Load Note
+                st.session_state.prod_note_input = details.get('note', "")
+                
                 st.toast(f"Loaded recipe for '{details['name']}'", icon="📖")
             else:
                 # Name changed to something new -> Clear ID (New Product Mode)
@@ -80,6 +83,7 @@ def render(container, inventory_df):
 
         prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze", key="prod_name_input")
         
+        prod_note = st.text_area("Product Note", placeholder="e.g. 'Fragile', 'Keep Refrigerated'", key="prod_note_input", height=80)
         
         # Show ID if available
         if st.session_state.get('editing_product_id'):
@@ -128,4 +132,4 @@ def render(container, inventory_df):
 
         save_clicked = st.button("💾 Save / Update Product", type="primary", width="stretch")
         
-        return uploaded_file, save_clicked, prod_type, goal_date, goal_qty
+        return uploaded_file, save_clicked, prod_type, goal_date, goal_qty, prod_note
