@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SEED_DIR = "seed_data"
+SEED_DIR = "seed"
 INVENTORY_FILE = os.path.join(SEED_DIR, "default_inventory.csv")
 RECIPES_IMG_DIR = os.path.join(SEED_DIR, "images")
 
