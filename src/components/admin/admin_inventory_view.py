@@ -139,3 +139,33 @@ def render_stock_levels(raw_inventory_df):
             perform_save()
     else:
         st.info("Inventory is currently empty.")
+
+    st.divider()
+    with st.expander("➕ Add New Item", expanded=False):
+        with st.form("add_item_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                new_name = st.text_input("Name", placeholder="e.g. Red Rose")
+                new_cat = st.text_input("Category", placeholder="e.g. Stem")
+            with c2:
+                new_sub = st.text_input("Sub-Category", placeholder="e.g. Rose")
+                new_cost = st.number_input("Unit Cost ($)", min_value=0.0, step=0.01, format="%.2f")
+            with c3:
+                new_stock = st.number_input("Stock", min_value=0, step=1)
+                new_bundle = st.number_input("Bundle Qty", min_value=1, value=1, step=1)
+            
+            if st.form_submit_button("Add Item", type="primary", width="stretch"):
+                if not new_name or not new_name.strip():
+                    st.error("Name is required.")
+                else:
+                    # Clean inputs: Strip whitespace and convert empty strings to None
+                    final_name = new_name.strip()
+                    final_cat = new_cat.strip() if new_cat and new_cat.strip() else None
+                    final_sub = new_sub.strip() if new_sub and new_sub.strip() else None
+                    
+                    if db_utils.add_inventory_item(final_name, final_cat, final_sub, new_stock, new_cost, new_bundle):
+                        st.toast(f"Added '{final_name}'!", icon="✅")
+                        time.sleep(0.25)
+                        st.rerun()
+                    else:
+                        st.error(f"Could not add '{final_name}'. It may already exist.")

@@ -188,11 +188,11 @@ def export_products_csv() -> str:
     try:
         # We explicitly grab the 'category' column to support One-Offs
         query = """
-        SELECT p.display_name as Product, p.selling_price as Price, p.category as Type, 
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.category as Type, p.note as "Product Note",
                r.item_id, 
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
-               r.qty_needed as Qty,
-               r.note as Note
+               r.note as Note,
+               r.qty_needed as Qty
         FROM products p
         LEFT JOIN recipes r ON p.product_id = r.product_id
         LEFT JOIN inventory i ON r.item_id = i.item_id
@@ -253,6 +253,14 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 # 1. Product Details (from first row)
                 first_row = group.iloc[0]
                 
+                # Check for Product ID
+                p_id_val = first_row.get('product_id')
+                target_p_id = None
+                if pd.notna(p_id_val):
+                    try:
+                        target_p_id = int(float(p_id_val))
+                    except (ValueError, TypeError): pass
+
                 raw_price = first_row.get('price', 0.0)
                 try:
                     price = float(str(raw_price).replace('$', '').replace(',', '')) if pd.notna(raw_price) else 0.0
@@ -262,6 +270,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 # This handles your "One-Off" vs "Standard" logic
                 cat = first_row.get('type', 'Standard') 
                 if pd.isna(cat): cat = 'Standard'
+                
+                # Product Note
+                prod_note = str(first_row.get('product note', '')).strip() or None
                 
                 # 2. Build Recipe List
                 recipe_items = []
@@ -311,19 +322,20 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     errors.append(f"Skipped '{product_name}': No valid ingredients.")
                     continue
 
-                # 3. Create or Update Product
-                cursor.execute("SELECT product_id FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
-                prod_res = cursor.fetchone()
+                # 3. Create or Update Product based on ID
+                prod_exists = False
+                if target_p_id:
+                    cursor.execute("SELECT 1 FROM products WHERE product_id = ?", (target_p_id,))
+                    if cursor.fetchone():
+                        prod_exists = True
                 
                 # Try to find local image
                 new_image_bytes = _get_local_image_bytes(product_name)
                 
-                if prod_res:
+                if prod_exists:
                     # UPDATE (Immutable Pattern)
-                    p_id = prod_res[0]
-                    
                     # 1. Fetch existing data to preserve (Image, Stock)
-                    cursor.execute("SELECT image_data, stock_on_hand FROM products WHERE product_id = ?", (p_id,))
+                    cursor.execute("SELECT image_data, stock_on_hand FROM products WHERE product_id = ?", (target_p_id,))
                     existing_data = cursor.fetchone()
                     old_img = existing_data[0] if existing_data else None
                     old_stock = existing_data[1] if existing_data else 0
@@ -332,20 +344,20 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     final_img = new_image_bytes if new_image_bytes else old_img
                     
                     # 2. Archive Old
-                    cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (p_id,))
+                    cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_p_id,))
                     
                     # 3. Create New (New Price/Cat, Old Image/Stock)
-                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category) VALUES (?, ?, ?, 1, ?, ?)", 
-                                   (product_name, price, final_img, old_stock, cat))
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note) VALUES (?, ?, ?, 1, ?, ?, ?)", 
+                                   (product_name, price, final_img, old_stock, cat, prod_note))
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
                     for item_id, q, r_type, r_val, note in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 else:
-                    # INSERT
-                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand) VALUES (?, ?, ?, ?, 1, 0)", 
-                                   (product_name, price, new_image_bytes, cat))
+                    # INSERT (New Product)
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note) VALUES (?, ?, ?, ?, 1, 0, ?)", 
+                                   (product_name, price, new_image_bytes, cat, prod_note))
                     new_id = cursor.lastrowid
                     for item_id, q, r_type, r_val, note in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
@@ -927,6 +939,30 @@ def update_item_details(item_id, count, cost, bundle_count):
     except sqlite3.Error as e:
         logger.error(f"update_item_details: {e}")
         conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def add_inventory_item(name: str, category: str, sub_category: str, count: int, cost: float, bundle_count: int) -> bool:
+    """Adds a new inventory item. Returns False if name exists."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # Check duplicate
+        cursor.execute("SELECT 1 FROM inventory WHERE name = ? COLLATE NOCASE", (name,))
+        if cursor.fetchone():
+            logger.warning(f"add_inventory_item: Duplicate name '{name}'")
+            return False
+
+        cursor.execute("""
+            INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, category, sub_category, count, cost, bundle_count))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"add_inventory_item: {e}")
         return False
     finally:
         conn.close()

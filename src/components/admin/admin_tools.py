@@ -96,7 +96,7 @@ def render_bulk_operations(raw_inventory_df):
     
     # 2. PRODUCT & RECIPE IMPORT
     st.subheader("2. Recipe & Product Import")
-    st.caption("Mass import products. Required Columns: **Product, Price, Type, Ingredient, Qty**")
+    st.caption("Mass import products. Columns: **product_id, Product, Price, Type, Product Note, Ingredient, Note, Qty**")
     
     col_dl_prod, col_up_prod = st.columns(2)
     
