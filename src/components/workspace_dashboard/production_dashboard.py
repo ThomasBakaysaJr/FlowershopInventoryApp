@@ -203,11 +203,24 @@ def render():
         d_col1.date_input("Start", key="prod_dash_start")
         d_col2.date_input("End", key="prod_dash_end")
 
+    # Search Bar
+    c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
+    with c_search:
+        search_term = st.text_input("Search", placeholder="Filter by product name...", label_visibility="collapsed", key="prod_dash_search")
+    with c_clear:
+        if st.button("Clear", help="Clear Search", width="stretch"):
+            st.session_state.prod_dash_search = ""
+            st.rerun()
+
     st.divider()
 
     # --- Fetch Data ---
     df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
     recipes_df = db_utils.get_all_recipes()
+
+    # Apply Search Filter
+    if search_term:
+        df = df[df['Product'].str.contains(search_term, case=False, na=False)]
 
     if df.empty:
         st.info("No active products or requirements found for this period.")
