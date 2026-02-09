@@ -1,5 +1,104 @@
 import streamlit as st
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
+
+def add_ingredient_callback(id_to_item):
+    # Retrieve current widget states directly from session state
+    item_mode = st.session_state.get("recipe_builder_mode")
+    qty = st.session_state.get("recipe_builder_qty", 1)
+
+    # Ensure recipe list exists
+    if 'new_recipe' not in st.session_state:
+        st.session_state.new_recipe = []
+
+    if item_mode == "Specific Item":
+        selected_item_id = st.session_state.get("recipe_builder_item_select")
+        
+        if selected_item_id is None or selected_item_id not in id_to_item:
+            st.toast("Please select an item.", icon="⚠️")
+            return
+
+        # Use selected_item_id as the source of truth for the ID
+        try:
+            target_id = int(float(selected_item_id))
+        except (ValueError, TypeError):
+            st.toast("Invalid Item ID.", icon="⚠️")
+            return
+            
+        # Retrieve metadata (Name, Cost)
+        item_data = id_to_item.get(selected_item_id)
+        if item_data is None:
+            st.toast("Item details not found.", icon="⚠️")
+            return
+        
+        # Check if item already exists to update quantity instead of duplicating
+        existing_item = None
+        for item in st.session_state.new_recipe:
+            # We only care about items that HAVE an ID (Specific)
+            stored_id = item.get('id')
+            
+            if stored_id is not None:
+                try:
+                    check_id = int(float(stored_id))
+                    if check_id == target_id:
+                        existing_item = item
+                        break
+                except (ValueError, TypeError):
+                    continue
+        
+        if existing_item:
+            existing_item['qty'] += qty
+            st.toast(f"Updated {item_data['name']} quantity to {existing_item['qty']}", icon="🔄")
+        else:
+            st.session_state.new_recipe.append({
+                'id': target_id, # Store as int
+                'name': item_data['name'],
+                'qty': qty,
+                'cost': float(item_data['unit_cost']),
+                'type': 'Specific',
+                'val': None
+            })
+    else:
+        selected_cat_name = st.session_state.get("recipe_builder_cat_select")
+        
+        if not selected_cat_name:
+            st.toast("Please select a category.", icon="⚠️")
+            return
+
+        # Add Generic to session state
+        # Check if generic category already exists
+        existing_generic = None
+        for item in st.session_state.new_recipe:
+            # Match by type/val
+            if item.get('type') == 'Category' and item.get('val') == selected_cat_name:
+                existing_generic = item
+                break
+            # Fallback: Match by name pattern (legacy items)
+            if item.get('id') is None and item.get('name') == f"Any {selected_cat_name}":
+                existing_generic = item
+                break
+        
+        if existing_generic:
+            existing_generic['qty'] += qty
+            # Normalize structure if it was a legacy item
+            if 'type' not in existing_generic:
+                existing_generic['type'] = 'Category'
+                existing_generic['val'] = selected_cat_name
+            st.toast(f"Updated Any {selected_cat_name} quantity to {existing_generic['qty']}", icon="🔄")
+        else:
+            st.session_state.new_recipe.append({
+                "name": f"Any {selected_cat_name}",
+                "qty": qty,
+                "type": "Category",
+                "val": selected_cat_name,
+                "id": None,
+                "cost": 0.0
+            })
+    
+    # Reset quantity to 1 for next add
+    st.session_state.recipe_builder_qty = 1
 
 def render(container, inventory_df):
     """Renders the Recipe Builder (Ingredient selection, Table) in the provided container."""
@@ -14,8 +113,13 @@ def render(container, inventory_df):
             
             with c1:
                 # TOGGLE: Specific Item vs Generic Category
-                item_mode = st.radio("Type", ["Specific Item", "Generic Sub-Category"], horizontal=True, label_visibility="collapsed")
+                item_mode = st.radio("Type", ["Specific Item", "Generic Sub-Category"], horizontal=True, label_visibility="collapsed", key="recipe_builder_mode")
             
+            # Initialize variables to ensure scope availability for callback args
+            id_to_item = {}
+            selected_item_id = None
+            selected_cat_name = None
+
             # Filter Items
             with c2:
                 if item_mode == "Specific Item":
@@ -36,47 +140,18 @@ def render(container, inventory_df):
                             cost = 0.0
                         return f"{item['name']} (${cost:.2f})"
                     
-                    selected_item_id = st.selectbox("Select Ingredient", options=id_to_item.keys(), format_func=format_item_label, label_visibility="collapsed")
+                    selected_item_id = st.selectbox("Select Ingredient", options=id_to_item.keys(), format_func=format_item_label, label_visibility="collapsed", key="recipe_builder_item_select")
                 else:
                     # NEW: Category Logic
                     # Get unique sub_categories (e.g., 'Rose', 'Lily')
                     cat_options = [x for x in inventory_df['sub_category'].unique() if x]
-                    selected_cat_name = st.selectbox("Select Sub-Category", sorted(cat_options), label_visibility="collapsed")
+                    selected_cat_name = st.selectbox("Select Sub-Category", sorted(cat_options), label_visibility="collapsed", key="recipe_builder_cat_select")
 
             with c3:
-                qty = st.number_input("Quantity", min_value=1, value=1, label_visibility="collapsed")
+                qty = st.number_input("Quantity", min_value=1, value=1, label_visibility="collapsed", key="recipe_builder_qty")
             
             with c4:
-                if st.button("Add", type="primary", width='stretch'):
-                    if item_mode == "Specific Item":
-                        item_data = id_to_item[selected_item_id]
-                        
-                        # Check if item already exists to update quantity instead of duplicating
-                        existing_item = next((x for x in st.session_state.new_recipe if x.get('id') == item_data['item_id']), None)
-                        
-                        if existing_item:
-                            existing_item['qty'] += qty
-                            st.toast(f"Updated {item_data['name']} quantity to {existing_item['qty']}", icon="🔄")
-                        else:
-                            st.session_state.new_recipe.append({
-                                'id': item_data['item_id'],
-                                'name': item_data['name'],
-                                'qty': qty,
-                                'cost': item_data['unit_cost'],
-                                'type': 'Specific',
-                                'val': None
-                            })
-                    else:
-                        # Add Generic to session state
-                        st.session_state.new_recipe.append({
-                            "name": f"Any {selected_cat_name}",
-                            "qty": qty,
-                            "type": "Category",
-                            "val": selected_cat_name,
-                            "id": None,
-                            "cost": 0.0
-                        })
-                    st.rerun()
+                st.button("Add", type="primary", width='stretch', on_click=add_ingredient_callback, args=(id_to_item,))
         
         # Display Current Recipe Table
         if st.session_state.new_recipe:

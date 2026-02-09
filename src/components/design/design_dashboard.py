@@ -4,14 +4,12 @@ from src.utils import db_utils, utils
 from src.components import design
 
 def render_design_tab(inventory_df):
-    col_header, col_reset = st.columns([3, 1])
-    with col_header:
-        st.header("🌸 New Arrangement Designer")
-        st.caption("Build new products by selecting items from your inventory.")
-    with col_reset:
-        if st.button("⚠️ Reset Form", help="Clear all fields and start over", type="secondary", width="stretch"):
-            st.session_state.should_clear_input = True
-            st.rerun()
+    st.header("🌸 New Arrangement Designer")
+    st.caption("Build new products by selecting items from your inventory.")
+    
+    if st.button("⚠️ Reset Form", help="Clear all fields and start over", type="secondary", width="stretch"):
+        st.session_state.should_clear_input = True
+        st.rerun()
 
     # Initialize uploader key if not present (Fix for sticky images)
     if 'uploader_key' not in st.session_state:
@@ -77,7 +75,9 @@ def render_design_tab(inventory_df):
                     'id': ing['item_id'],
                     'name': ing['name'],
                     'qty': ing['qty'],
-                    'cost': cost
+                    'cost': cost,
+                    'type': ing.get('type', 'Specific'),
+                    'val': ing.get('val')
                 })
             
             # Track that we are editing this specific product

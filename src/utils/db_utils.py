@@ -889,7 +889,13 @@ def get_product_details(product_name: str) -> Optional[dict]:
                 name = f"Any {row[4]}"
             else:
                 name = "Unknown Item"
-            recipe_items.append({"item_id": row[0], "name": name, "qty": row[2]})
+            recipe_items.append({
+                "item_id": row[0], 
+                "name": name, 
+                "qty": row[2],
+                "type": row[3],
+                "val": row[4]
+            })
         
         return {
             "product_id": p_id,
