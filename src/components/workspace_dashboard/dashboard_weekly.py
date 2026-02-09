@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from src.utils import db_utils
+from src.components import recipe_display
 
 def handle_log_production(goal_id, product_name):
     # 1. Check Requirements
@@ -165,6 +166,7 @@ def render():
 
     st.subheader("Production Goals")
     goals_df = db_utils.get_weekly_production_goals()
+    recipes_df = db_utils.get_all_recipes()
 
     if not goals_df.empty:
         # Get unique weeks with both ISO and Display format, sorted by ISO
@@ -192,11 +194,11 @@ def render():
 
         # Render Content for Selected Week
         if selected_iso:
-            render_week_content(goals_df, selected_iso)
+            render_week_content(goals_df, selected_iso, recipes_df)
     else:
         st.info("No production goals set for the coming weeks.")
 
-def render_week_content(goals_df, week_iso):
+def render_week_content(goals_df, week_iso, recipes_df):
     """Helper to filter data and render the grid for a specific week."""
     week_data = goals_df[goals_df['week_start_iso'] == week_iso].copy()
     
@@ -211,11 +213,11 @@ def render_week_content(goals_df, week_iso):
         for date_val in unique_dates:
             st.subheader(date_val.strftime('%A, %b %d'))
             day_data = week_data[week_data[date_col].dt.date == date_val].reset_index(drop=True)
-            render_grid(day_data, key_suffix=f"_{date_val}")
+            render_grid(day_data, recipes_df, key_suffix=f"_{date_val}")
     else:
-        render_grid(week_data.reset_index(drop=True))
+        render_grid(week_data.reset_index(drop=True), recipes_df)
 
-def render_grid(week_data, key_suffix=""):
+def render_grid(week_data, recipes_df, key_suffix=""):
     # Create a grid: 2 columns on desktop, stacks on mobile
     for i in range(0, len(week_data), 2):
         grid_cols = st.columns(2)
@@ -301,3 +303,5 @@ def render_grid(week_data, key_suffix=""):
                                     on_click=handle_undo_production,
                                     args=(row['goal_id'], row['Product'])
                                 )
+                        
+                        recipe_display.render_recipe_expander(row['product_id'], recipes_df)

@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.utils import db_utils
+from src.components import recipe_display
 
 def handle_make_stock(product_id, product_name):
     """Callback to increase stock."""
@@ -206,6 +207,7 @@ def render():
 
     # --- Fetch Data ---
     df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
+    recipes_df = db_utils.get_all_recipes()
 
     if df.empty:
         st.info("No active products or requirements found for this period.")
@@ -219,9 +221,9 @@ def render():
             if i + j < len(df):
                 row = df.iloc[i+j]
                 with cols[j]:
-                    render_card(row)
+                    render_card(row, recipes_df)
 
-def render_card(row):
+def render_card(row, recipes_df):
     with st.container(border=True):
         # Layout: Image | Info (Name, Stats, Bar) | Actions (+/-)
         c_img, c_info, c_act = st.columns([1, 2.5, 0.8], vertical_alignment="center")
@@ -286,3 +288,5 @@ def render_card(row):
                 on_click=handle_undo_stock,
                 args=(int(row['product_id']), row['Product'])
             )
+        
+        recipe_display.render_recipe_expander(row['product_id'], recipes_df)

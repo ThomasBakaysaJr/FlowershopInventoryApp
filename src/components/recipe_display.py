@@ -1,109 +1,78 @@
 import streamlit as st
 import pandas as pd
-import time
 from src.utils import db_utils
 
-def render_single_recipe(prod_row, full_df, allow_edit):
-    """Helper to render a single recipe card."""
-    product_name = prod_row['Product']
-    p_id = prod_row['product_id']
-    is_active = prod_row['active']
-    category = prod_row.get('category', 'Standard')
-    
-    display_name = product_name
-    if category == 'One-Off':
-        display_name = f"🦄 {display_name}"
-
-    if is_active == 0:
-        display_name = f"⚠️ {display_name}"
-    
-    with st.expander(f"📖 [{p_id}] {display_name}"):
-        recipe = full_df[full_df['product_id'] == p_id]
-
-        # --- VIEW MODE ---
-        with st.container(border=True):
-            if allow_edit:
-                col_image, col_recipe, col_actions = st.columns([1, 2, 0.5], vertical_alignment="top", gap="small")
-            else:
-                col_image, col_recipe = st.columns([1, 2], vertical_alignment="top", gap="small")
-
-            with col_image:
-                if pd.notna(recipe['image_data'].iloc[0]):
-                    st.image(recipe['image_data'].iloc[0], width=200)
-            with col_recipe:
-                st.write(f"**Target Price:** ${recipe['Price'].iloc[0]:.2f}")
-                for _, row in recipe.iterrows():
-                    if pd.notna(row['Ingredient']):
-                        st.write(f"- {row['Qty']}x {row['Ingredient']}")
-            
-            if allow_edit:
-                with col_actions:
-                    if st.button("✏️ Edit", key=f"edit_btn_{p_id}"):
-                        # Load data into session state for the Design Studio
-                        st.session_state['design_edit_name'] = product_name
-                        st.session_state['design_edit_price'] = recipe['Price'].iloc[0]
-                        st.session_state['design_edit_ingredients'] = recipe[['Ingredient', 'Qty']].to_dict('records')
-                        st.toast(f"Loading '{product_name}' in Design Studio...", icon="🎨")
-                        time.sleep(0.25)
-                        st.rerun()
-                        
-                    with st.popover("🗑️", help="Delete Product"):
-                        st.write(f"Delete **{product_name}**?")
-                        if st.button("Confirm", key=f"confirm_del_{p_id}", type="primary"):
-                            db_utils.delete_product(p_id)
-                            st.toast(f"Deleted {product_name}")
-                            st.rerun()
-
 def render_recipe_display(allow_edit=False):
-    st.header("Recipe Reference")
+    st.header("📖 Recipe Book")
+    st.caption("Browse all active product recipes.")
+
+    # Fetch all recipes (denormalized)
+    df = db_utils.get_all_recipes()
+
+    if df.empty:
+        st.info("No recipes found.")
+        return
+
+    # Search Bar
+    search_term = st.text_input("Search Recipes", placeholder="Search by product name...", label_visibility="collapsed")
     
-    # Fetch recipes and group them by product for a cleaner UI
-    products_df = db_utils.get_all_recipes()
+    if search_term:
+        df = df[df['Product'].str.contains(search_term, case=False, na=False)]
 
-    if not products_df.empty:
-        unique_products = products_df[['Product', 'product_id', 'active', 'category']].drop_duplicates()
-        
-        if not allow_edit:
-            # WORKSPACE VIEW: Show Active + Archived (ONLY if currently in production goals)
-            goals_df = db_utils.get_weekly_production_goals()
-            active_goal_ids = []
-            if not goals_df.empty:
-                active_goal_ids = goals_df['product_id'].unique().tolist()
-            
-            # Filter: Active OR in current goals
-            mask = (unique_products['active'] == 1) | (unique_products['product_id'].isin(active_goal_ids))
-            visible_products = unique_products[mask]
+    # Group by Product
+    # We get multiple rows per product (one per ingredient)
+    # We need to iterate over unique products
+    unique_products = df[['product_id', 'Product', 'Price', 'image_data', 'active', 'category']].drop_duplicates()
 
-            # Separate One-Offs
-            standard_prods = visible_products[visible_products['category'] != 'One-Off']
-            one_off_prods = visible_products[visible_products['category'] == 'One-Off']
+    for _, prod in unique_products.iterrows():
+        with st.expander(f"{prod['Product']} - ${prod['Price']:.2f}", expanded=False):
+            c1, c2 = st.columns([1, 3])
             
-            if standard_prods.empty and one_off_prods.empty:
-                st.info("No active recipes found.")
-            else:
-                for _, row in standard_prods.iterrows():
-                    render_single_recipe(row, products_df, allow_edit)
+            with c1:
+                if pd.notna(prod['image_data']):
+                    st.image(prod['image_data'], use_container_width=True)
+                else:
+                    st.text("No Image")
                 
-                if not one_off_prods.empty:
-                    st.divider()
-                    st.caption("🦄 Active Custom / One-Off Orders")
-                    with st.expander("View One-Offs"):
-                        for _, row in one_off_prods.iterrows():
-                            render_single_recipe(row, products_df, allow_edit)
-                    
-        else:
-            # DESIGNER VIEW: Active separated from Archived
-            active_prods = unique_products[unique_products['active'] == 1]
-            archived_prods = unique_products[unique_products['active'] == 0]
-            
-            for _, row in active_prods.iterrows():
-                render_single_recipe(row, products_df, allow_edit)
+                if allow_edit:
+                    if st.button("✏️ Edit Recipe", key=f"edit_rec_{prod['product_id']}", width="stretch"):
+                        st.session_state['design_edit_name'] = prod['Product']
+                        st.rerun()
 
-            if not archived_prods.empty:
-                st.divider()
-                st.caption("Archived Recipes")
-                with st.expander("📂 View Archived Recipes"):
-                    for _, row in archived_prods.iterrows():
-                        render_single_recipe(row, products_df, allow_edit)
-    else:
-        st.info("No products or recipes defined.")
+            with c2:
+                # Filter ingredients for this product
+                ingredients = df[df['product_id'] == prod['product_id']].copy()
+                
+                if ingredients.empty or pd.isna(ingredients.iloc[0]['Ingredient']):
+                    st.info("No ingredients defined.")
+                else:
+                    # Display Ingredients Table
+                    st.dataframe(
+                        ingredients[['Ingredient', 'Qty', 'Note']],
+                        hide_index=True,
+                        width="stretch",
+                        column_config={
+                            "Ingredient": st.column_config.TextColumn("Item"),
+                            "Qty": st.column_config.NumberColumn("Qty"),
+                            "Note": st.column_config.TextColumn("Note")
+                        }
+                    )
+
+def render_recipe_expander(product_id, recipes_df):
+    """Reusable component to show a recipe expander inside other cards/grids."""
+    with st.expander("Recipe Details"):
+        if not recipes_df.empty:
+            prod_recipe = recipes_df[recipes_df['product_id'] == product_id]
+            if not prod_recipe.empty:
+                st.dataframe(
+                    prod_recipe[['Ingredient', 'Qty', 'Note']],
+                    hide_index=True,
+                    width="stretch",
+                    column_config={
+                        "Ingredient": st.column_config.TextColumn("Item"),
+                        "Qty": st.column_config.NumberColumn("Qty"),
+                        "Note": st.column_config.TextColumn("Note")
+                    }
+                )
+            else:
+                st.caption("No recipe defined.")

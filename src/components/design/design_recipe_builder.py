@@ -174,7 +174,10 @@ def render(container, inventory_df):
                 recipe_df[['name', 'note', 'qty', 'Subtotal']], 
                 width="stretch",
                 hide_index=True,
-                column_config={"Subtotal": st.column_config.NumberColumn(format="$%.2f")}
+                column_config={
+                    "Subtotal": st.column_config.NumberColumn(format="$%.2f"),
+                    "note": st.column_config.TextColumn("Note")
+                }
             )
             
             # Remove Item Controls
