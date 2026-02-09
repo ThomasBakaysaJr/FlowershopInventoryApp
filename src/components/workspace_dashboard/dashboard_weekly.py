@@ -269,10 +269,10 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                             if row['active'] == 0:
                                 display_name = f"⚠️ {display_name}"
                                 
-                            st.markdown(f"### **{display_name}**" if needed > 0 else f"~~{display_name}~~")
+                            st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
                         
                         with col_qty:
-                            st.markdown(f"### **{needed}** left" if needed > 0 else "Done")
+                            st.markdown(f"**{needed}** left" if needed > 0 else "Done")
                             if needed > 0:
                                 if stock > 0:
                                     st.caption(f"In Cooler: {stock}")

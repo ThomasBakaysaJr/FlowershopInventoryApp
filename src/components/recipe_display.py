@@ -9,6 +9,10 @@ def render_recipe_display(allow_edit=False):
     # Fetch all recipes (denormalized)
     df = db_utils.get_all_recipes()
 
+    # Filter to show only active recipes in the book
+    if not df.empty:
+        df = df[df['active'] == 1]
+
     if df.empty:
         st.info("No recipes found.")
         return
@@ -38,6 +42,13 @@ def render_recipe_display(allow_edit=False):
                     if st.button("✏️ Edit Recipe", key=f"edit_rec_{prod['product_id']}", width="stretch"):
                         st.session_state['design_edit_name'] = prod['Product']
                         st.rerun()
+                    
+                    with st.popover("🗑️ Delete", use_container_width=True):
+                        st.write("Are you sure?")
+                        if st.button("Confirm", key=f"del_{prod['product_id']}", type="primary", width="stretch"):
+                            if db_utils.delete_product(prod['product_id']):
+                                st.toast(f"Deleted {prod['Product']}", icon="🗑️")
+                                st.rerun()
 
             with c2:
                 # Filter ingredients for this product
