@@ -10,7 +10,7 @@ import pandas as pd
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils import db_utils, utils
-import seed_db
+import seed_db as seed_db
 
 @pytest.fixture
 def dummy_image_bytes():
