@@ -18,6 +18,8 @@ def render_production_viewer():
         st.error("Start date must be before end date.")
         return
 
+    st.subheader(f"Displaying: {start_date.strftime('%b %d, %Y')} – {end_date.strftime('%b %d, %Y')}")
+
     # 2. Fetch Data
     # Get list of products that are either active OR have goals in this range
     product_options_df = db_utils.get_active_and_scheduled_products(start_date, end_date)
