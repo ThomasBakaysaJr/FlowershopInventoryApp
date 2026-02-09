@@ -23,43 +23,10 @@ INVENTORY_FILE = os.path.join(SEED_DIR, "default_inventory.csv")
 RECIPES_IMG_DIR = os.path.join(SEED_DIR, "images")
 
 def ensure_seed_data():
-    """Ensures the seed directory and default inventory file exist."""
-    if not os.path.exists(SEED_DIR):
-        os.makedirs(SEED_DIR)
-        logger.info(f"Created seed directory: {SEED_DIR}")
-    
+    """Validates that the required seed data exists."""
     if not os.path.exists(INVENTORY_FILE):
-        # Create a robust default inventory
-        data = [
-            # Hard Goods
-            {"name": "Judy Vase", "category": "Hard Good", "sub_category": "Vase", "count_on_hand": 50, "unit_cost": 2.50, "bundle_count": 1},
-            {"name": "Blue Ceramic Pot", "category": "Hard Good", "sub_category": "Vase", "count_on_hand": 20, "unit_cost": 4.75, "bundle_count": 1},
-            {"name": "Clear Bud Vase", "category": "Hard Good", "sub_category": "Vase", "count_on_hand": 100, "unit_cost": 1.10, "bundle_count": 1},
-            {"name": "Rustic Basket", "category": "Hard Good", "sub_category": "Basket", "count_on_hand": 15, "unit_cost": 3.50, "bundle_count": 1},
-            {"name": "Floral Foam Block", "category": "Hard Good", "sub_category": "Supply", "count_on_hand": 200, "unit_cost": 0.75, "bundle_count": 1},
-            # Stems
-            {"name": "Red Rose 40cm", "category": "Stem", "sub_category": "Rose", "count_on_hand": 200, "unit_cost": 0.85, "bundle_count": 25},
-            {"name": "White Rose 50cm", "category": "Stem", "sub_category": "Rose", "count_on_hand": 150, "unit_cost": 0.95, "bundle_count": 25},
-            {"name": "Pink Rose 40cm", "category": "Stem", "sub_category": "Rose", "count_on_hand": 180, "unit_cost": 0.85, "bundle_count": 25},
-            {"name": "White Lily", "category": "Stem", "sub_category": "Lily", "count_on_hand": 40, "unit_cost": 2.25, "bundle_count": 10},
-            {"name": "Pink Oriental Lily", "category": "Stem", "sub_category": "Lily", "count_on_hand": 30, "unit_cost": 2.50, "bundle_count": 10},
-            {"name": "Yellow Tulip", "category": "Stem", "sub_category": "Tulip", "count_on_hand": 150, "unit_cost": 0.65, "bundle_count": 10},
-            {"name": "Purple Tulip", "category": "Stem", "sub_category": "Tulip", "count_on_hand": 120, "unit_cost": 0.65, "bundle_count": 10},
-            {"name": "Pink Carnation", "category": "Stem", "sub_category": "Carnation", "count_on_hand": 300, "unit_cost": 0.45, "bundle_count": 25},
-            {"name": "White Carnation", "category": "Stem", "sub_category": "Carnation", "count_on_hand": 250, "unit_cost": 0.45, "bundle_count": 25},
-            {"name": "Blue Hydrangea", "category": "Stem", "sub_category": "Hydrangea", "count_on_hand": 20, "unit_cost": 3.50, "bundle_count": 1},
-            {"name": "White Hydrangea", "category": "Stem", "sub_category": "Hydrangea", "count_on_hand": 25, "unit_cost": 3.25, "bundle_count": 1},
-            {"name": "Sunflower", "category": "Stem", "sub_category": "Sunflower", "count_on_hand": 60, "unit_cost": 1.25, "bundle_count": 5},
-            # Greenery
-            {"name": "Leather Leaf", "category": "Greenery", "sub_category": None, "count_on_hand": 100, "unit_cost": 0.50, "bundle_count": 10},
-            {"name": "Silver Dollar Eucalyptus", "category": "Greenery", "sub_category": "Eucalyptus", "count_on_hand": 80, "unit_cost": 1.20, "bundle_count": 10},
-            {"name": "Baby Blue Eucalyptus", "category": "Greenery", "sub_category": "Eucalyptus", "count_on_hand": 70, "unit_cost": 1.10, "bundle_count": 10},
-            {"name": "Salal", "category": "Greenery", "sub_category": None, "count_on_hand": 60, "unit_cost": 0.75, "bundle_count": 10},
-            {"name": "Ruscus", "category": "Greenery", "sub_category": None, "count_on_hand": 50, "unit_cost": 0.80, "bundle_count": 10}
-        ]
-        df = pd.DataFrame(data)
-        df.to_csv(INVENTORY_FILE, index=False)
-        logger.info(f"Created default inventory file at {INVENTORY_FILE}")
+        logger.error(f"Seed file missing: {INVENTORY_FILE}")
+        raise FileNotFoundError(f"Required seed file '{INVENTORY_FILE}' not found. Please place your inventory CSV there.")
 
 def get_product_names_and_images():
     """Scans the recipes image directory for products."""
