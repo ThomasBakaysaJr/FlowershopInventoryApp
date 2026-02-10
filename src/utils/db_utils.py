@@ -269,8 +269,8 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     price = 0.0
 
                 # This handles your "One-Off" vs "Standard" logic
-                cat = first_row.get('type', 'Standard') 
-                if pd.isna(cat): cat = 'Standard'
+                cat = first_row.get('type', None) 
+                if pd.isna(cat): cat = None
                 
                 # Product Note
                 prod_note = str(first_row.get('product note', '')).strip() or None
@@ -335,23 +335,25 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 
                 if prod_exists:
                     # UPDATE (Immutable Pattern)
-                    # 1. Fetch existing data to preserve (Image, Stock, Variants)
-                    cursor.execute("SELECT image_data, stock_on_hand, variant_group_id, variant_type FROM products WHERE product_id = ?", (target_p_id,))
+                    # 1. Fetch existing data to preserve (Image, Stock, Variants, Category)
+                    cursor.execute("SELECT image_data, stock_on_hand, variant_group_id, variant_type, category FROM products WHERE product_id = ?", (target_p_id,))
                     existing_data = cursor.fetchone()
                     old_img = existing_data[0] if existing_data else None
                     old_stock = existing_data[1] if existing_data else 0
                     old_group_id = existing_data[2] if existing_data and existing_data[2] else str(uuid.uuid4())
                     old_variant_type = existing_data[3] if existing_data and existing_data[3] else 'STD'
+                    old_category = existing_data[4] if existing_data else 'Standard'
                     
                     # Determine final image: New local image takes precedence, otherwise keep old
                     final_img = new_image_bytes if new_image_bytes else old_img
+                    final_cat = cat if cat is not None else old_category
                     
                     # 2. Archive Old
                     cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_p_id,))
                     
                     # 3. Create New (New Price/Cat, Old Image/Stock, Preserved Variant Info)
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)", 
-                                   (product_name, price, final_img, old_stock, cat, prod_note, old_group_id, old_variant_type))
+                                   (product_name, price, final_img, old_stock, final_cat, prod_note, old_group_id, old_variant_type))
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
@@ -359,9 +361,10 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 else:
                     # INSERT (New Product)
+                    final_cat = cat if cat is not None else 'Standard'
                     new_group_id = str(uuid.uuid4())
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
-                                   (product_name, price, new_image_bytes, cat, prod_note, new_group_id))
+                                   (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
                     new_id = cursor.lastrowid
                     for item_id, q, r_type, r_val, note in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
@@ -388,7 +391,7 @@ def update_product_recipe(
     new_price: Optional[float] = None,
     rollover_stock: bool = True,
     variant_group_id: Optional[str] = None,
-    category: str = "Standard",
+    category: Optional[str] = None,
     migrate_goals: bool = False,
     goal_date: Optional[str] = None,
     goal_qty: int = 0,
@@ -399,18 +402,19 @@ def update_product_recipe(
     cursor = conn.cursor()
     try:
         # 1. Find the current product to get its current data
-        cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand, note, variant_group_id, variant_type FROM products WHERE product_id = ?", (current_product_id,))
+        cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand, note, variant_group_id, variant_type, category FROM products WHERE product_id = ?", (current_product_id,))
         res = cursor.fetchone()
         if not res:
             return False
         
-        old_price, old_image_data, old_name, current_stock, old_note, old_group_id, old_variant_type = res
+        old_price, old_image_data, old_name, current_stock, old_note, old_group_id, old_variant_type, old_category = res
         
         # 2. Determine new values (use old ones if not provided)
         final_price = new_price if new_price is not None else old_price
         final_image = image_bytes if image_bytes is not None else old_image_data
         final_name = new_name.strip()
         final_note = note if note is not None else old_note
+        final_category = category if category is not None else old_category
         
         # Preserve variant info unless explicitly overwritten (which usually doesn't happen in simple edits)
         final_group_id = variant_group_id if variant_group_id else (old_group_id if old_group_id else str(uuid.uuid4()))
@@ -429,7 +433,7 @@ def update_product_recipe(
         # 4. Create new product version
         final_stock = current_stock if rollover_stock else 0
         cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
-                       (final_name, final_price, final_image, final_stock, category, final_note, final_group_id, old_variant_type or 'STD'))
+                       (final_name, final_price, final_image, final_stock, final_category, final_note, final_group_id, old_variant_type or 'STD'))
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items

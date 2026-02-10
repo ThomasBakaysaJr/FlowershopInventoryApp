@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 import os
+import sys
 
 # Configure logging to match GEMINI.md standards
 if not os.path.exists('logs'):
@@ -13,8 +14,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def initialize_database(db_path='inventory.db'):
+def initialize_database(db_path='inventory.db', reset=False):
     """Creates the database schema using the Safe Pattern."""
+    if reset and os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+            logger.info(f"Deleted existing database at '{db_path}'")
+            print(f"🗑️  Deleted existing database: {db_path}")
+        except OSError as e:
+            logger.error(f"Error deleting database: {e}")
+            print(f"❌ Error deleting database: {e}")
+            return
+
     connection = None
     try:
         connection = sqlite3.connect(db_path)
@@ -43,7 +54,9 @@ def initialize_database(db_path='inventory.db'):
                 active BOOLEAN DEFAULT 1,
                 stock_on_hand INTEGER DEFAULT 0,
                 category TEXT DEFAULT 'Standard',
-                note TEXT
+                note TEXT,
+                variant_group_id TEXT,
+                variant_type TEXT DEFAULT 'STD'
             )
         ''')
 
@@ -96,4 +109,5 @@ def initialize_database(db_path='inventory.db'):
             connection.close()
 
 if __name__ == "__main__":
-    initialize_database()
+    reset_db = "--reset" in sys.argv
+    initialize_database(reset=reset_db)

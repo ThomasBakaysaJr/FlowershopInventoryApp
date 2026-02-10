@@ -1,135 +1,81 @@
 import streamlit as st
-import datetime
-from src.utils import db_utils, settings_utils
+from src.utils import db_utils
+from . import design_recipe_builder
 
-def render(container, inventory_df):
-    """Renders the Product Details form (Name, Image, Pricing) in the provided container."""
+def render_variant_tab(v_type, label, variant_map, group_id, base_name, category):
+    # Check if variant exists
+    if v_type in variant_map:
+        v_summary = variant_map[v_type]
+        v_details = db_utils.get_product_details(v_summary['name'])
+        
+        if not v_details:
+            st.error(f"Could not load details for {label}")
+            return
+
+        p_id = v_details['product_id']
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            render_info_form(p_id, v_details, label, group_id)
+        
+        with col2:
+            design_recipe_builder.render_recipe_editor(p_id, v_details, group_id, v_type, variant_map)
+
+    else:
+        render_create_button(v_type, label, base_name, group_id, category)
+
+def render_info_form(p_id, v_details, label, group_id):
+    # Image
+    if v_details['image_data']:
+        st.image(v_details['image_data'], caption=f"{label} Preview", use_container_width=True)
+    else:
+        st.info("No image available")
     
-    # --- AUTO-LOAD LOGIC (Moved to top) ---
-    # We must check and update session state BEFORE widgets are instantiated to avoid StreamlitAPIException.
-    current_name = st.session_state.get("prod_name_input", "")
+    new_img = st.file_uploader(f"Update {label} Image", type=['png', 'jpg', 'jpeg'], key=f"img_{p_id}")
     
-    if 'last_loaded_prod_name' not in st.session_state:
-        st.session_state.last_loaded_prod_name = ""
+    with st.form(key=f"form_info_{p_id}"):
+        new_name = st.text_input("Display Name", value=v_details['name'])
+        new_price = st.number_input("Selling Price ($)", value=float(v_details['price']), step=0.5)
+        new_note = st.text_area("Notes", value=v_details['note'] if v_details['note'] else "")
         
-    # Check if name changed
-    if current_name != st.session_state.last_loaded_prod_name:
-        if current_name:
-            # Try to fetch details
-            details = db_utils.get_product_details(current_name)
-            if details:
-                # Found existing product! Load it.
-                st.session_state.new_recipe = []
-                for ing in details['recipe']:
-                    # Find cost from inventory_df
-                    cost = 0.0
-                    if not inventory_df.empty:
-                        match = inventory_df[inventory_df['item_id'] == ing['item_id']]
-                        if not match.empty:
-                            cost = match.iloc[0]['unit_cost']
-                    
-                    st.session_state.new_recipe.append({
-                        'id': ing['item_id'],
-                        'name': ing['name'],
-                        'qty': ing['qty'],
-                        'cost': cost,
-                        'type': ing.get('type', 'Specific'),
-                        'val': ing.get('val'),
-                        'note': ing.get('note')
-                    })
-                
-                # Update Pricing
-                st.session_state.final_price_input = float(details['price'])
-                st.session_state.last_suggested_price = float(details['price'])
-                
-                # Set Editing Context
-                st.session_state.editing_product_id = details['product_id']
-                st.session_state.editing_product_original_name = details['name']
-                
-                # Load Category
-                if details.get('category'):
-                    st.session_state.prod_type_input = details['category']
-                
-                # Load Note
-                st.session_state.prod_note_input = details.get('note', "")
-                
-                st.toast(f"Loaded recipe for '{details['name']}'", icon="📖")
-            else:
-                # Name changed to something new -> Clear ID (New Product Mode)
-                st.session_state.pop('editing_product_id', None)
-                st.session_state.pop('editing_product_original_name', None)
-        else:
-            # Name cleared -> Clear ID
-            st.session_state.pop('editing_product_id', None)
-            st.session_state.pop('editing_product_original_name', None)
-        
-        st.session_state.last_loaded_prod_name = current_name
+        if st.form_submit_button("💾 Save Info"):
+            img_bytes = new_img.getvalue() if new_img else None
+            success = db_utils.update_product_recipe(
+                current_product_id=p_id,
+                new_name=new_name,
+                recipe_items=v_details['recipe'],
+                image_bytes=img_bytes,
+                new_price=new_price,
+                note=new_note,
+                variant_group_id=group_id,
+                category=v_details['category']
+            )
+            if success:
+                st.success("Updated!")
+                st.rerun()
 
-    with container:
-        st.subheader("1. Product Details")
-        prod_type = st.radio("Product Type", ["Standard", "One-Off"], horizontal=True, help="One-Off items auto-archive when finished.", key="prod_type_input")
+def render_create_button(v_type, label, base_name, group_id, category):
+    st.info(f"No {label} version exists for this product.")
+    if st.button(f"➕ Create {label} Version", key=f"create_{v_type}"):
+        # Strip existing suffix if present to get clean base
+        clean_base = base_name
+        for s in ['Standard', 'Deluxe', 'Premium']:
+            if clean_base.endswith(s):
+                clean_base = clean_base.replace(s, "").strip()
+                break
         
-        goal_date = None
-        goal_qty = 0
+        new_name = f"{clean_base} {label}"
         
-        if prod_type == "One-Off":
-            create_goal = st.checkbox("Schedule Production Immediately?", value=True, key="create_goal_input")
-            if create_goal:
-                col_d, col_q = st.columns(2)
-                with col_d:
-                    goal_date = st.date_input("Due Date", value=datetime.date.today() + datetime.timedelta(days=1), min_value=datetime.date.today(), key="goal_date_input")
-                with col_q:
-                    goal_qty = st.number_input("Quantity", min_value=1, value=1, step=1, key="goal_qty_input")
-
-        prod_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze", key="prod_name_input")
-        
-        prod_note = st.text_area("Product Note", placeholder="e.g. 'Fragile', 'Keep Refrigerated'", key="prod_note_input", height=80)
-        
-        # Show ID if available
-        if st.session_state.get('editing_product_id'):
-             st.caption(f"Recipe ID: {st.session_state.editing_product_id}")
-
-        # Show existing image if it exists so user knows they don't need to re-upload
-        if prod_name:
-            current_img = db_utils.get_product_image(prod_name)
-            if current_img:
-                st.image(current_img, caption="Current Image (Will be kept if no new upload)", width=150)
-
-        uploaded_file = st.file_uploader("Upload Thumbnail", type=['png', 'jpg', 'jpeg'], key=f"uploader_{st.session_state.uploader_key}")
-        
-        st.divider()
-        
-        # --- COSTING FORMULA (HIGHLIGHTED FOR ADJUSTMENT) ---
-        st.subheader("3. Pricing")
-        
-        # Load Settings
-        settings = settings_utils.load_settings()
-
-        # Calculate Costs
-        cogs = sum(item['cost'] * item['qty'] for item in st.session_state.new_recipe)
-        
-        suggested_price, total_cost, breakdown, markup_val = settings_utils.calculate_price(cogs, settings)
-
-        # Auto-update input when recipe changes
-        if 'last_suggested_price' not in st.session_state:
-            st.session_state.last_suggested_price = 0.0
-            
-        if abs(suggested_price - st.session_state.last_suggested_price) > 0.001:
-            st.session_state.final_price_input = float(f"{suggested_price:.2f}")
-            st.session_state.last_suggested_price = suggested_price
-
-        st.markdown(f"**Cost of Goods (COGS):** `${cogs:.2f}`")
-        for line in breakdown:
-            st.markdown(f"**{line}**")
-        st.markdown(f"**Total Cost:** `${total_cost:.2f}`")
-        
-        st.markdown(f"### **Formula Suggested:** `${suggested_price:.2f}`")
-        st.caption(f"(Based on {markup_val}x markup)")
-        
-        st.number_input("Final Selling Price ($)", min_value=0.0, step=1.0, key="final_price_input")
-        st.checkbox("Rollover Stock Count?", value=True, key="rollover_stock_input", help="If checked, existing stock count will be moved to the new version.")
-        st.checkbox("Migrate Unfulfilled Goals?", value=True, key="migrate_goals_input", help="If checked, pending production goals will be moved to the new version.")
-
-        save_clicked = st.button("💾 Save / Update Product", type="primary", width="stretch")
-        
-        return uploaded_file, save_clicked, prod_type, goal_date, goal_qty, prod_note
+        success = db_utils.create_new_product(
+            name=new_name,
+            selling_price=0.0,
+            image_bytes=None,
+            recipe_items=[],
+            category=category,
+            variant_group_id=group_id,
+            variant_type=v_type
+        )
+        if success:
+            st.success(f"Created {new_name}!")
+            st.rerun()

@@ -18,6 +18,7 @@ A Streamlit application for managing a flower shop's inventory, designing produc
 - `app.py`: Application entry point. Handles main navigation (Workspace, Design, Admin).
 - `init_db.py`: Database schema initialization.
 - `seed_db.py`: Populates database with sample data.
+- `uni_seed.py`: **Smart Seeder**. Scans `images/recipes`, groups files by suffix (Standard/Deluxe/Premium), and creates linked Product Families.
 - `migrate_v2.py`: Database migration script (adds generic recipe support).
 
 ### Core Logic (`src/utils/`)
@@ -38,10 +39,9 @@ A Streamlit application for managing a flower shop's inventory, designing produc
 - `goal_setter.py`: Form to add new production goals.
 
 #### 2. Design Studio (`design/`)
-- `design_dashboard.py`: Main design interface.
-- `design_product_details.py`: Input form for product metadata and pricing.
-- `design_recipe_builder.py`: Interactive ingredient selector (Specific items or Generic categories).
-- `design_save_logic.py`: Handles creation/updates of products, including overwrite protection.
+- `design_dashboard.py`: **Entry Point**. Handles product selection and renders the Variant Tabs (STD/DLX/PRM).
+- `design_product_details.py`: **Variant View**. Displays image, metadata form, and "Create Variant" logic.
+- `design_recipe_builder.py`: **Recipe Editor**. Handles ingredient addition, removal, and "Copy from Standard" logic.
 
 #### 3. Admin Tools (`admin/`)
 - `admin_inventory_view.py`: **Stock Levels**. Editable grid for raw inventory.
@@ -52,7 +52,7 @@ A Streamlit application for managing a flower shop's inventory, designing produc
 
 ## Data Models
 - **Inventory**: Raw items (Flowers, Vases).
-- **Products**: Defined designs/recipes.
+- **Products**: Defined designs/recipes. Organized into **Families** via `variant_group_id`. Variants (`STD`, `DLX`, `PRM`) share a group but have unique recipes/prices.
 - **Recipes**: Ingredients required for a product. Supports `Specific` (Item ID) or `Category` (e.g., "Any Rose").
 - **Production Goals**: Orders with due dates.
 - **Production Logs**: Audit trail of items made.

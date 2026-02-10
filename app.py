@@ -4,7 +4,7 @@ import os
 import time
 import logging
 from src.utils import db_utils
-from src.components import workspace_dashboard, admin, recipe_display
+from src.components import workspace_dashboard, admin, recipe_display, design
 from src.components.workspace_dashboard import production_dashboard
 from src.components.admin import admin_inventory_view, production_viewer, forecaster, admin_settings
 
@@ -93,7 +93,7 @@ else:
             recipe_display.render_recipe_display(allow_edit=True)
 
         elif st.session_state.nav_design == "✏️ Design Studio":
-            admin.design_dashboard.render_design_tab(raw_inventory_df)
+            design.design_dashboard.render_design_dashboard()
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
