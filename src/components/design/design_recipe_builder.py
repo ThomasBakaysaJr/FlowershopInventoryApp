@@ -5,68 +5,87 @@ from src.utils import db_utils
 def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
     st.markdown("### 🌿 Recipe")
     
-    current_recipe = v_details['recipe']
+    # Initialize session state for this product's recipe if not exists
+    if f"recipe_state_{p_id}" not in st.session_state:
+        st.session_state[f"recipe_state_{p_id}"] = v_details['recipe']
+    
+    current_recipe = st.session_state[f"recipe_state_{p_id}"]
     if current_recipe:
         recipe_df = pd.DataFrame(current_recipe)
+        
+        # Ensure required columns exist to prevent KeyError
+        for col in ['name', 'qty', 'type', 'val', 'note']:
+            if col not in recipe_df.columns:
+                recipe_df[col] = None
+
         display_df = recipe_df[['name', 'qty', 'type', 'val', 'note']].copy()
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, width="stretch", hide_index=True)
     else:
         st.info("No ingredients yet.")
 
     with st.expander("✏️ Edit Recipe", expanded=True):
-        c1, c2, c3 = st.columns([3, 1, 1])
+        # Toggle for Specific Item vs Generic Category
+        ing_type = st.radio("Ingredient Type", ["Specific Item", "Generic Category"], horizontal=True, label_visibility="collapsed", key=f"ing_type_{p_id}")
+        
+        c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="bottom")
+        
+        selected_item_id = None
+        selected_item_name = None
+        selected_cat_val = None
+        
         with c1:
-            inv_df = db_utils.get_inventory()
-            inv_options = inv_df['name'].tolist() if not inv_df.empty else []
-            selected_ing = st.selectbox("Add Ingredient", inv_options, key=f"sel_ing_{p_id}")
+            if ing_type == "Specific Item":
+                inv_df = db_utils.get_inventory()
+                inv_options = inv_df['name'].tolist() if not inv_df.empty else []
+                selected_ing = st.selectbox("Select Item", inv_options, key=f"sel_ing_{p_id}")
+                
+                if selected_ing and not inv_df.empty:
+                    item_row = inv_df[inv_df['name'] == selected_ing].iloc[0]
+                    selected_item_id = int(item_row['item_id'])
+                    selected_item_name = selected_ing
+            else:
+                # Generic Category Input
+                selected_cat_val = st.text_input("Category Name", placeholder="e.g. Any Rose", key=f"cat_val_{p_id}")
+
         with c2:
             qty_add = st.number_input("Qty", min_value=1, value=1, key=f"qty_{p_id}")
         with c3:
             add_btn = st.button("Add", key=f"add_btn_{p_id}")
         
-        if add_btn and selected_ing:
-            item_row = inv_df[inv_df['name'] == selected_ing].iloc[0]
-            item_id = int(item_row['item_id'])
-            
+        if add_btn:
             new_recipe = current_recipe.copy()
             found = False
-            for r in new_recipe:
-                if r['item_id'] == item_id:
-                    r['qty'] += qty_add
-                    found = True
-                    break
-            if not found:
-                new_recipe.append({'item_id': item_id, 'qty': qty_add})
             
-            db_utils.update_product_recipe(
-                current_product_id=p_id,
-                new_name=v_details['name'],
-                recipe_items=new_recipe,
-                variant_group_id=group_id
-            )
+            if ing_type == "Specific Item" and selected_item_id:
+                # Check if item already exists in recipe to aggregate
+                for r in new_recipe:
+                    if r.get('item_id') == selected_item_id and r.get('type', 'Specific') == 'Specific':
+                        r['qty'] += qty_add
+                        found = True
+                        break
+                if not found:
+                    new_recipe.append({'item_id': selected_item_id, 'qty': qty_add, 'type': 'Specific', 'val': None, 'name': selected_item_name, 'note': None})
+            
+            elif ing_type == "Generic Category" and selected_cat_val:
+                # Always add generics as new rows (or you could aggregate if names match exactly)
+                # For now, let's append to allow "Any Rose" and "Any Lily" separately
+                new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat_val, 'name': f"Any {selected_cat_val}", 'note': None})
+            
+            st.session_state[f"recipe_state_{p_id}"] = new_recipe
             st.rerun()
 
         if st.button("🗑️ Clear Recipe", key=f"clear_{p_id}"):
-             db_utils.update_product_recipe(
-                current_product_id=p_id,
-                new_name=v_details['name'],
-                recipe_items=[],
-                variant_group_id=group_id
-            )
-             st.rerun()
+            st.session_state[f"recipe_state_{p_id}"] = []
+            st.rerun()
         
         # Copy Logic
         if v_type in ['DLX', 'PRM'] and 'STD' in variant_map:
             if st.button(f"📋 Copy from Standard", key=f"copy_{p_id}"):
                 std_details = db_utils.get_product_details(variant_map['STD']['name'])
                 if std_details and std_details['recipe']:
-                    db_utils.update_product_recipe(
-                        current_product_id=p_id,
-                        new_name=v_details['name'],
-                        recipe_items=std_details['recipe'],
-                        variant_group_id=group_id
-                    )
-                    st.success("Copied recipe from Standard!")
+                    # Copy recipe to session state
+                    st.session_state[f"recipe_state_{p_id}"] = std_details['recipe']
+                    st.toast("Copied recipe from Standard! Don't forget to Save.")
                     st.rerun()
                 else:
                     st.warning("Standard version has no recipe to copy.")

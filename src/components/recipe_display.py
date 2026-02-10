@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 from src.utils import db_utils
 
 def render_recipe_display(allow_edit=False):
@@ -49,7 +50,7 @@ def render_recipe_display(allow_edit=False):
                 
                 with c1:
                     if pd.notna(prod['image_data']):
-                        st.image(prod['image_data'], use_container_width=True)
+                        st.image(io.BytesIO(prod['image_data']), width="stretch")
                     else:
                         st.text("No Image")
                     

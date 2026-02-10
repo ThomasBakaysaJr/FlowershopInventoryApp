@@ -56,6 +56,24 @@ else:
         label_visibility="collapsed"
     )
 
+    # --- State Cleanup ---
+    # Reset recipe editor state if we are not in the Design Studio
+    # This ensures that navigating away (e.g. to Recipe Book) clears unsaved edits.
+    is_in_design_studio = (st.session_state.nav_main == "🎨 Designer Space" and st.session_state.get("nav_design") == "✏️ Design Studio")
+    
+    if not is_in_design_studio:
+        # Use list() to create a copy of keys to avoid runtime errors during deletion
+        for k in list(st.session_state.keys()):
+            if k.startswith("recipe_state_"):
+                del st.session_state[k]
+            
+    # Reset Designer Studio selection shadows if we leave the Designer Space entirely OR switch to Recipe Book
+    # This ensures that returning to the Design Studio manually defaults to 'Create New'
+    if st.session_state.nav_main != "🎨 Designer Space" or st.session_state.get("nav_design") == "📖 Recipe Book":
+        for k in ["shadow_design_mode", "shadow_design_product", "design_mode_radio", "design_product_select", "design_search"]:
+            if k in st.session_state:
+                del st.session_state[k]
+
     if st.session_state.nav_main == "🛠️ Workspace":
         if "nav_workspace" not in st.session_state:
             st.session_state.nav_workspace = "📦 Production Dashboard"

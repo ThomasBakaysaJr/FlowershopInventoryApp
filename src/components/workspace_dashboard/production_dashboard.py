@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import io
 from src.utils import db_utils
 from src.components import recipe_display, date_selector
 
@@ -299,7 +300,7 @@ def render_card(row, recipes_df):
         
         with st.expander("🌿 Recipe & Image"):
             if pd.notna(row['image_data']):
-                st.image(row['image_data'], width=200)
+                st.image(io.BytesIO(row['image_data']), width=200)
             
             # Filter for recipe
             r_data = recipes_df[recipes_df['product_id'] == row['product_id']]
@@ -307,7 +308,7 @@ def render_card(row, recipes_df):
                 st.dataframe(
                     r_data[['Ingredient', 'Qty', 'Note']], 
                     hide_index=True, 
-                    use_container_width=True
+                    width="stretch"
                 )
             else:
                 st.caption("No ingredients listed.")

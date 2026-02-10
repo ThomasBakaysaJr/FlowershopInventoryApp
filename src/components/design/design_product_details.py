@@ -1,4 +1,5 @@
 import streamlit as st
+import io
 from src.utils import db_utils
 from . import design_recipe_builder
 
@@ -28,7 +29,7 @@ def render_variant_tab(v_type, label, variant_map, group_id, base_name, category
 def render_info_form(p_id, v_details, label, group_id):
     # Image
     if v_details['image_data']:
-        st.image(v_details['image_data'], caption=f"{label} Preview", use_container_width=True)
+        st.image(io.BytesIO(v_details['image_data']), caption=f"{label} Preview", width="stretch")
     else:
         st.info("No image available")
     
@@ -41,10 +42,14 @@ def render_info_form(p_id, v_details, label, group_id):
         
         if st.form_submit_button("💾 Save Info"):
             img_bytes = new_img.getvalue() if new_img else None
+            
+            # Use recipe from session state if available (edited), otherwise use DB version
+            final_recipe = st.session_state.get(f"recipe_state_{p_id}", v_details['recipe'])
+            
             success = db_utils.update_product_recipe(
                 current_product_id=p_id,
                 new_name=new_name,
-                recipe_items=v_details['recipe'],
+                recipe_items=final_recipe,
                 image_bytes=img_bytes,
                 new_price=new_price,
                 note=new_note,
@@ -52,6 +57,9 @@ def render_info_form(p_id, v_details, label, group_id):
                 category=v_details['category']
             )
             if success:
+                # Clear dirty state so next load fetches fresh from DB
+                if f"recipe_state_{p_id}" in st.session_state:
+                    del st.session_state[f"recipe_state_{p_id}"]
                 st.success("Updated!")
                 st.rerun()
 
