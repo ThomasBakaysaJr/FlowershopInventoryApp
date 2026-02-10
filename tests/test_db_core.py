@@ -3,6 +3,7 @@ import sqlite3
 import os
 import sys
 import pandas as pd
+import datetime
 
 # Add parent directory to path to import db_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -91,19 +92,19 @@ def test_undo_production_logic(setup_db):
     finally:
         conn.close()
 
-def test_get_weekly_production_goals(setup_db):
-    """Tests that goals are correctly grouped by week."""
-    df = db_utils.get_weekly_production_goals()
+def test_get_production_goals_range(setup_db):
+    """Tests fetching goals within a date range."""
+    # Seeded goal is 2023-10-30
+    start_date = datetime.date(2023, 10, 1)
+    end_date = datetime.date(2023, 11, 1)
+    
+    df = db_utils.get_production_goals_range(start_date, end_date)
     
     assert not df.empty
-    assert 'Week Starting' in df.columns
     assert 'qty_ordered' in df.columns
-    
-    # Check that our seeded goal (2023-10-30) is present
-    # 2023-10-30 is a Monday, so it should be the start of that week
-    target_row = df[df['week_start_iso'] == '2023-10-30']
-    assert not target_row.empty
-    assert target_row.iloc[0]['qty_ordered'] == 10
+    # Check for the seeded goal
+    assert len(df) >= 1
+    assert df.iloc[0]['qty_ordered'] == 10
 
 def test_clipboard_update(setup_db):
     """Tests the clipboard parsing utility (Comma Separated)."""
