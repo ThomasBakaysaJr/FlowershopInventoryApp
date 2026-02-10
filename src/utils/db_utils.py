@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import logging
 from typing import Optional, List, Tuple, Union
+import uuid
 import io
 import csv
 from src.utils import utils
@@ -334,11 +335,13 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 
                 if prod_exists:
                     # UPDATE (Immutable Pattern)
-                    # 1. Fetch existing data to preserve (Image, Stock)
-                    cursor.execute("SELECT image_data, stock_on_hand FROM products WHERE product_id = ?", (target_p_id,))
+                    # 1. Fetch existing data to preserve (Image, Stock, Variants)
+                    cursor.execute("SELECT image_data, stock_on_hand, variant_group_id, variant_type FROM products WHERE product_id = ?", (target_p_id,))
                     existing_data = cursor.fetchone()
                     old_img = existing_data[0] if existing_data else None
                     old_stock = existing_data[1] if existing_data else 0
+                    old_group_id = existing_data[2] if existing_data and existing_data[2] else str(uuid.uuid4())
+                    old_variant_type = existing_data[3] if existing_data and existing_data[3] else 'STD'
                     
                     # Determine final image: New local image takes precedence, otherwise keep old
                     final_img = new_image_bytes if new_image_bytes else old_img
@@ -346,9 +349,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     # 2. Archive Old
                     cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_p_id,))
                     
-                    # 3. Create New (New Price/Cat, Old Image/Stock)
-                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note) VALUES (?, ?, ?, 1, ?, ?, ?)", 
-                                   (product_name, price, final_img, old_stock, cat, prod_note))
+                    # 3. Create New (New Price/Cat, Old Image/Stock, Preserved Variant Info)
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)", 
+                                   (product_name, price, final_img, old_stock, cat, prod_note, old_group_id, old_variant_type))
                     new_id = cursor.lastrowid
                     
                     # 4. Insert Recipes
@@ -356,8 +359,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 else:
                     # INSERT (New Product)
-                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note) VALUES (?, ?, ?, ?, 1, 0, ?)", 
-                                   (product_name, price, new_image_bytes, cat, prod_note))
+                    new_group_id = str(uuid.uuid4())
+                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
+                                   (product_name, price, new_image_bytes, cat, prod_note, new_group_id))
                     new_id = cursor.lastrowid
                     for item_id, q, r_type, r_val, note in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
@@ -383,6 +387,7 @@ def update_product_recipe(
     image_bytes: Optional[bytes] = None, 
     new_price: Optional[float] = None,
     rollover_stock: bool = True,
+    variant_group_id: Optional[str] = None,
     category: str = "Standard",
     migrate_goals: bool = False,
     goal_date: Optional[str] = None,
@@ -394,18 +399,21 @@ def update_product_recipe(
     cursor = conn.cursor()
     try:
         # 1. Find the current product to get its current data
-        cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand, note FROM products WHERE product_id = ?", (current_product_id,))
+        cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand, note, variant_group_id, variant_type FROM products WHERE product_id = ?", (current_product_id,))
         res = cursor.fetchone()
         if not res:
             return False
         
-        old_price, old_image_data, old_name, current_stock, old_note = res
+        old_price, old_image_data, old_name, current_stock, old_note, old_group_id, old_variant_type = res
         
         # 2. Determine new values (use old ones if not provided)
         final_price = new_price if new_price is not None else old_price
         final_image = image_bytes if image_bytes is not None else old_image_data
         final_name = new_name.strip()
         final_note = note if note is not None else old_note
+        
+        # Preserve variant info unless explicitly overwritten (which usually doesn't happen in simple edits)
+        final_group_id = variant_group_id if variant_group_id else (old_group_id if old_group_id else str(uuid.uuid4()))
         
         # If renaming, check if the target name already exists and is active. If so, archive it too.
         if final_name.lower() != old_name.lower():
@@ -420,8 +428,8 @@ def update_product_recipe(
         
         # 4. Create new product version
         final_stock = current_stock if rollover_stock else 0
-        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note) VALUES (?, ?, ?, 1, ?, ?, ?)",
-                       (final_name, final_price, final_image, final_stock, category, final_note))
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
+                       (final_name, final_price, final_image, final_stock, category, final_note, final_group_id, old_variant_type or 'STD'))
         new_p_id = cursor.lastrowid
         
         # 5. Insert new recipe items
@@ -640,7 +648,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, p.note as ProductNote,
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, p.note as ProductNote, p.variant_type,
                r.item_id, 
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
                r.qty_needed as Qty,
@@ -782,16 +790,22 @@ def create_new_product(
     recipe_items: List[Union[Tuple[int, int], dict]],
     category: str = "Standard",
     goal_date: Optional[str] = None,
-    goal_qty: int = 0,
-    note: Optional[str] = None
+    goal_qty: int = 0, 
+    note: Optional[str] = None,
+    variant_group_id: Optional[str] = None,
+    variant_type: str = "STD"
 ) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        # Generate a group ID if one wasn't provided (treats this as a standalone product/group of 1)
+        if not variant_group_id:
+            variant_group_id = str(uuid.uuid4())
+
         # 1. Insert Product
-        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, category, note) VALUES (?, ?, ?, 1, ?, ?)",
-                       (name, selling_price, image_bytes, category, note))
+        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+                       (name, selling_price, image_bytes, category, note, variant_group_id, variant_type))
         product_id = cursor.lastrowid
         
         # 2. Insert Recipe Items
@@ -843,6 +857,34 @@ def check_product_exists(product_name: str) -> bool:
     finally:
         conn.close()
 
+def check_product_variant(product_name: str, variant_type: str) -> bool:
+    """Checks if a specific variant of a product already exists and is active."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM products WHERE display_name = ? COLLATE NOCASE AND variant_type = ? AND active = 1", (product_name, variant_type))
+        exists = cursor.fetchone() is not None
+        return exists
+    except Exception as e:
+        logger.error(f"check_product_variant: Error checking {product_name} ({variant_type}): {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_product_group_id(product_name: str) -> Optional[str]:
+    """Fetches the variant_group_id for an active product."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT variant_group_id FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        res = cursor.fetchone()
+        return res[0] if res else None
+    except Exception as e:
+        logger.error(f"get_product_group_id: Error fetching group ID for {product_name}: {e}")
+        return None
+    finally:
+        conn.close()
+
 def get_product_image(product_name: str) -> Optional[bytes]:
     """Fetches the thumbnail for a specific active product."""
     conn = get_connection()
@@ -863,12 +905,12 @@ def get_product_details(product_name: str) -> Optional[dict]:
     try:
         cursor = conn.cursor()
         # Get Product Info
-        cursor.execute("SELECT product_id, selling_price, image_data, display_name, stock_on_hand, category, note FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
+        cursor.execute("SELECT product_id, selling_price, image_data, display_name, stock_on_hand, category, note, variant_group_id, variant_type FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1", (product_name,))
         res = cursor.fetchone()
         if not res:
             return None
         
-        p_id, price, img, db_name, stock, category, note = res
+        p_id, price, img, db_name, stock, category, note, group_id, v_type = res
         
         # Get Recipe Items
         cursor.execute("""
@@ -896,6 +938,18 @@ def get_product_details(product_name: str) -> Optional[dict]:
                 "note": row[5]
             })
         
+        # Get Variants (Siblings)
+        variants = []
+        if group_id:
+            cursor.execute("""
+                SELECT product_id, display_name, variant_type 
+                FROM products 
+                WHERE variant_group_id = ? AND active = 1 
+                ORDER BY CASE variant_type WHEN 'STD' THEN 1 WHEN 'DLX' THEN 2 WHEN 'PRM' THEN 3 ELSE 4 END
+            """, (group_id,))
+            for vid, vname, vtype in cursor.fetchall():
+                variants.append({"product_id": vid, "name": vname, "type": vtype})
+
         return {
             "product_id": p_id,
             "name": db_name,
@@ -904,7 +958,10 @@ def get_product_details(product_name: str) -> Optional[dict]:
             "recipe": recipe_items,
             "stock_on_hand": stock,
             "category": category,
-            "note": note
+            "note": note,
+            "variant_group_id": group_id,
+            "variant_type": v_type,
+            "variants": variants
         }
     except Exception as e:
         logger.error(f"get_product_details: Error: {e}")
@@ -976,7 +1033,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
         
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?
@@ -1030,6 +1087,7 @@ def get_production_requirements(start_date, end_date) -> pd.DataFrame:
             p.active, 
             MAX(p.stock_on_hand) as stock_on_hand,
             MAX(p.note) as note,
+            MAX(p.variant_type) as variant_type,
             COALESCE(SUM(MAX(0, pg.qty_ordered - pg.qty_fulfilled)), 0) as required_qty
         FROM products p
         LEFT JOIN production_goals pg ON p.product_id = pg.product_id AND pg.due_date BETWEEN ? AND ?
