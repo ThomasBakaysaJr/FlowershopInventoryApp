@@ -174,9 +174,24 @@ def render():
     if start_date > end_date:
         return
 
+    # Search Bar
+    c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
+    with c_search:
+        search_term = st.text_input("Search Goals", placeholder="Filter by product name...", label_visibility="collapsed", key="weekly_dash_search")
+    with c_clear:
+        if st.button("Clear", key="clear_weekly_search", help="Clear Search", width="stretch"):
+            st.session_state.weekly_dash_search = ""
+            st.rerun()
+    
+    st.divider()
+
     # --- Fetch Data ---
     goals_df = db_utils.get_production_goals_range(start_date, end_date)
     recipes_df = db_utils.get_all_recipes()
+
+    # Apply Search
+    if search_term:
+        goals_df = db_utils.filter_dataframe_by_terms(goals_df, 'Product', search_term)
 
     if not goals_df.empty:
         goals_df['due_date'] = pd.to_datetime(goals_df['due_date'])
@@ -243,7 +258,7 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                             elif v_type == 'PRM':
                                 st.markdown(f"**{display_name}** :red[**[PRM]**]")
                             else:
-                                st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
+                                st.markdown(f"**{display_name}** :green[**[STD]**]" if needed > 0 else f"~~{display_name}~~ :green[**[STD]**]")
 
                             if pd.notna(row['note']) and row['note']:
                                 st.caption(f"📝 {row['note']}")

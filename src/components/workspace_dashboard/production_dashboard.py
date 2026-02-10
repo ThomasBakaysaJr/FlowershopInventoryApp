@@ -186,7 +186,7 @@ def render():
     with c_filter:
         show_all = st.checkbox("Show All Items", value=False, help="Uncheck to see only items with a deficit.")
     with c_clear:
-        if st.button("Clear", help="Clear Search", width="stretch"):
+        if st.button("Clear", key="clear_prod_dash_search", help="Clear Search", width="stretch"):
             st.session_state.prod_dash_search = ""
             st.rerun()
 
@@ -195,10 +195,10 @@ def render():
     # --- Fetch Data ---
     df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
     recipes_df = db_utils.get_all_recipes()
-
+    
     # Apply Search Filter
     if search_term:
-        df = df[df['Product'].str.contains(search_term, case=False, na=False)]
+        df = db_utils.filter_dataframe_by_terms(df, 'Product', search_term)
     
     # Apply "Needed Only" Filter (Default)
     # If searching, we ignore this filter to show what the user is looking for.

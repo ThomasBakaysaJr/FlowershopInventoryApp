@@ -15,6 +15,20 @@ DB_PATH = 'inventory.db'
 def get_connection() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
+def filter_dataframe_by_terms(df: pd.DataFrame, column: str, search_term: str) -> pd.DataFrame:
+    """
+    Filters a DataFrame by splitting the search string into tokens.
+    Each token must be present in the specified column (AND logic).
+    Case-insensitive.
+    """
+    if not search_term or df.empty:
+        return df
+        
+    for term in search_term.split():
+        df = df[df[column].str.contains(term, case=False, na=False, regex=False)]
+    
+    return df
+
 def get_inventory() -> pd.DataFrame:
     try:
         if not os.path.exists(DB_PATH):

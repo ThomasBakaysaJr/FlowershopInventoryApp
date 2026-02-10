@@ -29,11 +29,24 @@ def render_production_viewer():
 
     selected_product = st.selectbox("Expected Production", options=options, help="Lists active recipes and archived ones with goals in the selected timeframe.")
 
+    # Search Bar
+    c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
+    with c_search:
+        search_term = st.text_input("Search Goals", placeholder="Filter by product name...", label_visibility="collapsed", key="prod_view_search")
+    with c_clear:
+        if st.button("Clear", key="clear_prod_view_search", help="Clear Search", width="stretch"):
+            st.session_state.prod_view_search = ""
+            st.rerun()
+
     # 4. Filter & Display Table
     if not goals_df.empty:
         # Filter if specific product selected
         if selected_product != "All":
             goals_df = goals_df[goals_df['Product'] == selected_product]
+
+        # Apply Search Filter
+        if search_term:
+            goals_df = db_utils.filter_dataframe_by_terms(goals_df, 'Product', search_term)
 
         # Create a working copy to avoid SettingWithCopyWarning
         goals_df = goals_df.copy()
@@ -71,7 +84,7 @@ def render_production_viewer():
                     elif v_type == 'PRM':
                         st.markdown(f"{p_name} :red[**[PRM]**]")
                     else:
-                        st.write(p_name)
+                        st.markdown(f"{p_name} :green[**[STD]**]")
                 with c3:
                     st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
                 

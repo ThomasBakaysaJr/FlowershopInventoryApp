@@ -14,20 +14,33 @@ def render_recipe_display(allow_edit=False):
         return
 
     # Search Bar
-    search_term = st.text_input("Search Recipes", placeholder="Search by product name...", label_visibility="collapsed")
+    c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
+    with c_search:
+        search_term = st.text_input("Search Recipes", placeholder="Search by product name...", label_visibility="collapsed", key="recipe_book_search")
+    with c_clear:
+        if st.button("Clear", key="clear_recipe_search", help="Clear Search", width="stretch"):
+            st.session_state.recipe_book_search = ""
+            st.rerun()
     
     if search_term:
-        df = df[df['Product'].str.contains(search_term, case=False, na=False)]
+        df = db_utils.filter_dataframe_by_terms(df, 'Product', search_term)
 
     # Split Active vs Archived
     active_df = df[df['active'] == 1]
     archived_df = df[df['active'] == 0]
 
     def render_recipe_list(product_df):
-        unique_products = product_df[['product_id', 'Product', 'Price', 'image_data', 'active', 'category', 'ProductNote']].drop_duplicates()
+        unique_products = product_df[['product_id', 'Product', 'Price', 'image_data', 'active', 'category', 'ProductNote', 'variant_type']].drop_duplicates()
 
         for _, prod in unique_products.iterrows():
-            display_name = f"{prod['Product']} - ${prod['Price']:.2f}"
+            # Variant Badge
+            v_type = prod.get('variant_type', 'STD')
+            badge = " :green[[STD]]"
+            if v_type == 'DLX': badge = " :blue[[DLX]]"
+            elif v_type == 'PRM': badge = " :red[[PRM]]"
+            
+            display_name = f"{prod['Product']}{badge} - ${prod['Price']:.2f}"
+            
             if prod['active'] == 0:
                 display_name = f"⚠️ [Archived] {display_name}"
 
