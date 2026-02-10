@@ -19,8 +19,40 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
             if col not in recipe_df.columns:
                 recipe_df[col] = None
 
-        display_df = recipe_df[['name', 'qty', 'type', 'val', 'note']].copy()
-        st.dataframe(display_df, width="stretch", hide_index=True)
+        # Add a 'remove' column for the editor
+        recipe_df['remove'] = False
+
+        # Configure columns for the editor
+        column_config = {
+            "remove": st.column_config.CheckboxColumn("🗑️", width="small", help="Check to remove item"),
+            "name": st.column_config.TextColumn("Ingredient", disabled=True),
+            "qty": st.column_config.NumberColumn("Qty", min_value=1, step=1, width="small"),
+            "type": st.column_config.TextColumn("Type", disabled=True),
+            "val": st.column_config.TextColumn("Value", disabled=True),
+            "note": st.column_config.TextColumn("Note")
+        }
+
+        edited_df = st.data_editor(
+            recipe_df[['remove', 'name', 'qty', 'type', 'val', 'note']],
+            width="stretch",
+            hide_index=True,
+            column_config=column_config,
+            key=f"recipe_editor_{p_id}"
+        )
+
+        # Process updates (Removals or Edits)
+        if not edited_df.equals(recipe_df[['remove', 'name', 'qty', 'type', 'val', 'note']]):
+            new_recipe_list = []
+            for idx, row in edited_df.iterrows():
+                if not row['remove']:
+                    # Preserve original item_id and other hidden fields by copying from source
+                    updated_item = current_recipe[idx].copy()
+                    updated_item['qty'] = row['qty']
+                    updated_item['note'] = row['note']
+                    new_recipe_list.append(updated_item)
+            
+            st.session_state[f"recipe_state_{p_id}"] = new_recipe_list
+            st.rerun()
     else:
         st.info("No ingredients yet.")
 
