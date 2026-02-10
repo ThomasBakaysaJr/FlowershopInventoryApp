@@ -196,17 +196,25 @@ def render():
     df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
     recipes_df = db_utils.get_all_recipes()
 
-    # Apply "Needed Only" Filter (Default)
-    if not show_all:
-        df = df[df['stock_on_hand'] < df['required_qty']]
-
     # Apply Search Filter
     if search_term:
         df = df[df['Product'].str.contains(search_term, case=False, na=False)]
+    
+    # Apply "Needed Only" Filter (Default)
+    # If searching, we ignore this filter to show what the user is looking for.
+    elif not show_all:
+        df = df[df['stock_on_hand'] < df['required_qty']]
 
     if df.empty:
         st.info("No active products or requirements found for this period.")
         return
+
+    # --- Sorting Logic ---
+    # Sort by Product Family (Base Name) then Variant (STD -> DLX -> PRM)
+    df['sort_rank'] = df['variant_type'].map({'STD': 0, 'DLX': 1, 'PRM': 2}).fillna(3)
+    df['sort_base'] = df['Product'].str.replace(r'\s+(Standard|Deluxe|Premium)$', '', regex=True)
+    
+    df = df.sort_values(by=['sort_base', 'sort_rank'], ascending=[True, True])
 
     # --- Render Grid ---
     # 2 columns on desktop

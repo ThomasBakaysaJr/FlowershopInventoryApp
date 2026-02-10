@@ -239,9 +239,9 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                             # Variant Badge
                             v_type = row.get('variant_type', 'STD')
                             if v_type == 'DLX':
-                                st.markdown(f"**{display_name}** :purple[**[DLX]**]")
+                                st.markdown(f"**{display_name}** :blue[**[DLX]**]")
                             elif v_type == 'PRM':
-                                st.markdown(f"**{display_name}** :orange[**[PRM]**]")
+                                st.markdown(f"**{display_name}** :red[**[PRM]**]")
                             else:
                                 st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
 

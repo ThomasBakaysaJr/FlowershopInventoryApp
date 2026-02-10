@@ -67,9 +67,9 @@ def render_production_viewer():
                     p_name = row['Product']
                     v_type = row.get('variant_type', 'STD')
                     if v_type == 'DLX':
-                        st.markdown(f"{p_name} :purple[**DLX**]")
+                        st.markdown(f"{p_name} :blue[**[DLX]**]")
                     elif v_type == 'PRM':
-                        st.markdown(f"{p_name} :orange[**PRM**]")
+                        st.markdown(f"{p_name} :red[**[PRM]**]")
                     else:
                         st.write(p_name)
                 with c3:
