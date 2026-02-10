@@ -31,7 +31,7 @@ def render_recipe_display(allow_edit=False):
     archived_df = df[df['active'] == 0]
 
     def render_recipe_list(product_df):
-        unique_products = product_df[['product_id', 'Product', 'Price', 'image_data', 'active', 'category', 'ProductNote', 'variant_type']].drop_duplicates()
+        unique_products = product_df[['product_id', 'Product', 'Price', 'active', 'category', 'ProductNote', 'variant_type']].drop_duplicates()
 
         for _, prod in unique_products.iterrows():
             # Variant Badge
@@ -49,8 +49,10 @@ def render_recipe_display(allow_edit=False):
                 c1, c2 = st.columns([1, 3])
                 
                 with c1:
-                    if pd.notna(prod['image_data']):
-                        st.image(io.BytesIO(prod['image_data']), width="stretch")
+                    # Fetch image on demand
+                    img_data = db_utils.get_product_image_by_id(prod['product_id'])
+                    if img_data:
+                        st.image(io.BytesIO(img_data), width="stretch")
                     else:
                         st.text("No Image")
                     

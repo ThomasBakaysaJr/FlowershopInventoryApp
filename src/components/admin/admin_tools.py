@@ -141,3 +141,15 @@ def render_bulk_operations(raw_inventory_df):
                 st.rerun()
             else:
                 st.error("Database error occurred.")
+
+    with st.expander("🗑️ Clear Catalog Database"):
+        st.error("This will permanently delete ALL products and recipes.")
+        st.caption("This is irreversible and will also clear all production goals and history.")
+        
+        if st.button("I understand, delete all products and recipes", type="primary", width="stretch", key="del_catalog_btn"):
+            if db_utils.clear_products():
+                st.toast("Catalog cleared!", icon="🗑️")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Database error occurred.")

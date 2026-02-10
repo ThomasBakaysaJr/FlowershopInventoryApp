@@ -214,6 +214,26 @@ def clear_inventory() -> bool:
     finally:
         conn.close()
 
+def clear_products() -> bool:
+    """Deletes all products, recipes, and associated goals/logs."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        # Must delete from child tables first to avoid integrity errors if enforced
+        cursor.execute("DELETE FROM production_logs")
+        cursor.execute("DELETE FROM production_goals")
+        cursor.execute("DELETE FROM recipes")
+        cursor.execute("DELETE FROM products")
+        conn.commit()
+        logger.info("clear_products: All products, recipes, goals, and logs deleted.")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"clear_products: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 # ==========================================
 # 🌸 BULK RECIPE OPERATIONS (Catalog)
 # ==========================================
@@ -398,14 +418,23 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     # INSERT (New Product)
                     final_cat = cat if cat is not None else 'Standard'
                     new_group_id = str(uuid.uuid4())
+
+                    # --- Variant-Aware Logic ---
+                    # Parse the product name for a variant suffix, defaulting to STD
+                    words = product_name.split()
+                    last_word = words[-1].lower() if words else ""
+                    variant_type = "STD"
+                    suffix_map = {"standard": "STD", "deluxe": "DLX", "premium": "PRM"}
+                    if last_word in suffix_map:
+                        variant_type = suffix_map[last_word]
                     
                     if target_p_id:
-                        cursor.execute("INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
-                                       (target_p_id, product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
+                        cursor.execute("INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)", 
+                                       (target_p_id, product_name, price, new_image_bytes, final_cat, prod_note, new_group_id, variant_type))
                         new_id = target_p_id
                     else:
-                        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
-                                       (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
+                        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, ?)", 
+                                       (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id, variant_type))
                         new_id = cursor.lastrowid
 
                     for item_id, q, r_type, r_val, note in recipe_items:
@@ -694,7 +723,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.image_data, p.active, p.stock_on_hand, p.category, p.note as ProductNote, p.variant_type,
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.active, p.stock_on_hand, p.category, p.note as ProductNote, p.variant_type,
                r.item_id, 
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient, 
                r.qty_needed as Qty,
@@ -941,6 +970,20 @@ def get_product_image(product_name: str) -> Optional[bytes]:
         return res[0] if res else None
     except Exception as e:
         logger.error(f"get_product_image: Error fetching image for {product_name}: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_product_image_by_id(product_id: int) -> Optional[bytes]:
+    """Fetches the image for a specific product ID."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT image_data FROM products WHERE product_id = ?", (product_id,))
+        res = cursor.fetchone()
+        return res[0] if res else None
+    except Exception as e:
+        logger.error(f"get_product_image_by_id: {e}")
         return None
     finally:
         conn.close()
