@@ -124,3 +124,20 @@ def render_bulk_operations(raw_inventory_df):
                     with st.expander("⚠️ Import Errors", expanded=True):
                         for e in errors:
                             st.error(e)
+                            
+    st.divider()
+    
+    # 3. DANGER ZONE
+    st.subheader("⚠️ Danger Zone")
+    
+    with st.expander("🗑️ Clear Inventory Database"):
+        st.error("This will permanently delete ALL raw inventory items (Flowers, Vases, Hard Goods).")
+        st.caption("This does NOT delete Products or Recipes, but recipes will need to be re-linked via Bulk Upload if IDs change.")
+        
+        if st.button("I understand, delete all inventory", type="primary", width="stretch"):
+            if db_utils.clear_inventory():
+                st.toast("Inventory cleared!", icon="🗑️")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Database error occurred.")

@@ -63,6 +63,29 @@ def render_info_form(p_id, v_details, label, group_id):
                 st.success("Updated!")
                 st.rerun()
 
+    # Duplicate Feature
+    if st.button("©️ Duplicate as New Product", key=f"dup_{p_id}", help="Creates a new Product Family based on this variant."):
+        new_name = f"{v_details['name']} (Copy)"
+        
+        # Use recipe from session state if available (edited), otherwise use DB version
+        final_recipe = st.session_state.get(f"recipe_state_{p_id}", v_details['recipe'])
+        
+        success = db_utils.create_new_product(
+            name=new_name,
+            selling_price=v_details['price'],
+            image_bytes=v_details['image_data'],
+            recipe_items=final_recipe,
+            category=v_details['category'],
+            note=v_details['note'],
+            variant_type="STD" # Start as Standard of new family
+        )
+        
+        if success:
+            st.success(f"Created {new_name}!")
+            # Trigger edit mode for the new product
+            st.session_state['design_edit_name'] = new_name
+            st.rerun()
+
 def render_create_button(v_type, label, base_name, group_id, category):
     st.info(f"No {label} version exists for this product.")
     if st.button(f"➕ Create {label} Version", key=f"create_{v_type}"):

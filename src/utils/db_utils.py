@@ -4,8 +4,6 @@ import os
 import logging
 from typing import Optional, List, Tuple, Union
 import uuid
-import io
-import csv
 from src.utils import utils
 
 logger = logging.getLogger(__name__)
@@ -173,6 +171,13 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
                         SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=?
                         WHERE item_id=?
                     """, (name, cat, sub, qty, cost, bundle, i_id))
+                    
+                    # If ID provided but row doesn't exist (e.g. after clear_inventory), Insert with ID
+                    if cursor.rowcount == 0:
+                        cursor.execute("""
+                            INSERT INTO inventory (item_id, name, category, sub_category, count_on_hand, unit_cost, bundle_count)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (i_id, name, cat, sub, qty, cost, bundle))
                 else:
                     cursor.execute("""
                         INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count)
@@ -190,6 +195,22 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
         logger.error(f"process_bulk_inventory_upload: {e}")
         conn.rollback()
         return 0, [str(e)]
+    finally:
+        conn.close()
+
+def clear_inventory() -> bool:
+    """Deletes all items from the inventory table."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM inventory")
+        conn.commit()
+        logger.info("clear_inventory: All inventory items deleted.")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"clear_inventory: {e}")
+        conn.rollback()
+        return False
     finally:
         conn.close()
 
@@ -377,9 +398,16 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     # INSERT (New Product)
                     final_cat = cat if cat is not None else 'Standard'
                     new_group_id = str(uuid.uuid4())
-                    cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
-                                   (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
-                    new_id = cursor.lastrowid
+                    
+                    if target_p_id:
+                        cursor.execute("INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
+                                       (target_p_id, product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
+                        new_id = target_p_id
+                    else:
+                        cursor.execute("INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, 'STD')", 
+                                       (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id))
+                        new_id = cursor.lastrowid
+
                     for item_id, q, r_type, r_val, note in recipe_items:
                         cursor.execute("INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)", (new_id, item_id, q, r_type, r_val, note))
                 
@@ -1281,17 +1309,17 @@ def get_recipe_requirements(product_id: int) -> dict:
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT item_id, qty_needed, requirement_type, requirement_value 
+            SELECT item_id, qty_needed, requirement_type, requirement_value, note 
             FROM recipes WHERE product_id = ?
         """, (product_id,))
         
         rows = cursor.fetchall()
         result = {'has_generics': False, 'specific_items': [], 'generic_items': []}
         
-        for item_id, qty, req_type, req_val in rows:
+        for item_id, qty, req_type, req_val, note in rows:
             if req_type == 'Category':
                 result['has_generics'] = True
-                result['generic_items'].append({'category': req_val, 'qty': qty})
+                result['generic_items'].append({'category': req_val, 'qty': qty, 'note': note})
             else:
                 result['specific_items'].append((item_id, qty))
                 
@@ -1302,14 +1330,27 @@ def get_recipe_requirements(product_id: int) -> dict:
     finally:
         conn.close()
 
+def get_inventory_categories() -> List[str]:
+    """Returns a list of distinct main categories from the inventory."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT category FROM inventory WHERE category IS NOT NULL AND category != '' ORDER BY category")
+        return [row[0] for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"get_inventory_categories: {e}")
+        return []
+    finally:
+        conn.close()
+
 def get_items_by_category(category: str) -> pd.DataFrame:
-    """Returns a DataFrame of inventory items matching a specific sub_category."""
+    """Returns a DataFrame of inventory items matching a category OR sub_category."""
     conn = get_connection()
     try:
         return pd.read_sql_query(
-            "SELECT item_id, name, count_on_hand FROM inventory WHERE sub_category = ? COLLATE NOCASE", 
+            "SELECT item_id, name, count_on_hand FROM inventory WHERE (category = ? OR sub_category = ?) COLLATE NOCASE", 
             conn, 
-            params=(category,)
+            params=(category, category)
         )
     except Exception as e:
         logger.error(f"get_items_by_category: {e}")

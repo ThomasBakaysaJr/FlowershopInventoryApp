@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import copy
 from src.utils import db_utils
 
 def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
@@ -31,7 +32,8 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
         
         selected_item_id = None
         selected_item_name = None
-        selected_cat_val = None
+        selected_cat = None
+        custom_note = None
         
         with c1:
             if ing_type == "Specific Item":
@@ -44,8 +46,11 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                     selected_item_id = int(item_row['item_id'])
                     selected_item_name = selected_ing
             else:
-                # Generic Category Input
-                selected_cat_val = st.text_input("Category Name", placeholder="e.g. Any Rose", key=f"cat_val_{p_id}")
+                # Generic Category Selection (Mapped to Big Categories)
+                cats = db_utils.get_inventory_categories()
+                selected_cat = st.selectbox("Inventory Category", options=cats, key=f"cat_sel_{p_id}", help="Restricts fulfillment to items in this category.")
+                # Custom Note for the "Name" preference
+                custom_note = st.text_input("Description / Preference", placeholder="e.g. Any Rose", key=f"cat_note_{p_id}")
 
         with c2:
             qty_add = st.number_input("Qty", min_value=1, value=1, key=f"qty_{p_id}")
@@ -66,10 +71,10 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                 if not found:
                     new_recipe.append({'item_id': selected_item_id, 'qty': qty_add, 'type': 'Specific', 'val': None, 'name': selected_item_name, 'note': None})
             
-            elif ing_type == "Generic Category" and selected_cat_val:
+            elif ing_type == "Generic Category" and selected_cat:
                 # Always add generics as new rows (or you could aggregate if names match exactly)
-                # For now, let's append to allow "Any Rose" and "Any Lily" separately
-                new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat_val, 'name': f"Any {selected_cat_val}", 'note': None})
+                # We use the Category for the logic ('val') and the Custom Note for the user's description ('note')
+                new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat, 'name': f"Any {selected_cat}", 'note': custom_note})
             
             st.session_state[f"recipe_state_{p_id}"] = new_recipe
             st.rerun()
@@ -81,11 +86,19 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
         # Copy Logic
         if v_type in ['DLX', 'PRM'] and 'STD' in variant_map:
             if st.button(f"📋 Copy from Standard", key=f"copy_{p_id}"):
-                std_details = db_utils.get_product_details(variant_map['STD']['name'])
-                if std_details and std_details['recipe']:
-                    # Copy recipe to session state
-                    st.session_state[f"recipe_state_{p_id}"] = std_details['recipe']
-                    st.toast("Copied recipe from Standard! Don't forget to Save.")
+                std_info = variant_map['STD']
+                std_p_id = std_info['product_id']
+                
+                # Check for unsaved changes in session state first
+                if f"recipe_state_{std_p_id}" in st.session_state:
+                    st.session_state[f"recipe_state_{p_id}"] = copy.deepcopy(st.session_state[f"recipe_state_{std_p_id}"])
+                    st.toast("Copied recipe from Standard (Unsaved)!")
                     st.rerun()
                 else:
-                    st.warning("Standard version has no recipe to copy.")
+                    std_details = db_utils.get_product_details(std_info['name'])
+                    if std_details and std_details['recipe']:
+                        st.session_state[f"recipe_state_{p_id}"] = std_details['recipe']
+                        st.toast("Copied recipe from Standard!")
+                        st.rerun()
+                    else:
+                        st.warning("Standard version has no recipe to copy.")

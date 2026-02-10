@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import datetime
 import io
 from src.utils import db_utils
 from src.components import recipe_display, date_selector
@@ -29,9 +28,13 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
     for req in generic_reqs:
         category = req['category']
         needed = req['qty']
+        note = req.get('note')
         
         st.divider()
-        st.markdown(f"**Required:** {needed} x {category}")
+        label = f"**Required:** {needed} x {category}"
+        if note:
+            label += f" ({note})"
+        st.markdown(label)
         
         # Fetch available items in this category
         inventory_df = db_utils.get_items_by_category(category) 
