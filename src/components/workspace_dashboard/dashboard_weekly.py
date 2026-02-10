@@ -201,12 +201,7 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                 
                 with grid_cols[j]:
                     with st.container(border=True):
-                        # Added col_img to the layout
-                        col_img, col_add, col_name, col_qty, col_undo = st.columns([1.5, 0.6, 2, 1, 0.6], vertical_alignment="center", gap="small")
-                        
-                        with col_img:
-                            if pd.notna(row['image_data']):
-                                st.image(row['image_data'], use_container_width=True)
+                        col_add, col_name, col_qty, col_undo = st.columns([0.7, 2.5, 1, 0.7], vertical_alignment="center", gap="small")
                         
                         with col_add:
                             # Button Logic:
@@ -240,9 +235,16 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                             display_name = f"[{row['product_id']}] {row['Product']}"
                             if row['active'] == 0:
                                 display_name = f"⚠️ {display_name}"
-                                
-                            st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
                             
+                            # Variant Badge
+                            v_type = row.get('variant_type', 'STD')
+                            if v_type == 'DLX':
+                                st.markdown(f"**{display_name}** :purple[**[DLX]**]")
+                            elif v_type == 'PRM':
+                                st.markdown(f"**{display_name}** :orange[**[PRM]**]")
+                            else:
+                                st.markdown(f"**{display_name}**" if needed > 0 else f"~~{display_name}~~")
+
                             if pd.notna(row['note']) and row['note']:
                                 st.caption(f"📝 {row['note']}")
                         
@@ -279,4 +281,17 @@ def render_grid(week_data, recipes_df, key_suffix=""):
                                     args=(row['goal_id'], row['Product'])
                                 )
                         
-                        recipe_display.render_recipe_expander(row['product_id'], recipes_df)
+                        with st.expander("🌿 Recipe & Image"):
+                            if pd.notna(row['image_data']):
+                                st.image(row['image_data'], width=200)
+                            
+                            # Filter for recipe
+                            r_data = recipes_df[recipes_df['product_id'] == row['product_id']]
+                            if not r_data.empty:
+                                st.dataframe(
+                                    r_data[['Ingredient', 'Qty', 'Note']], 
+                                    hide_index=True, 
+                                    use_container_width=True
+                                )
+                            else:
+                                st.caption("No ingredients listed.")

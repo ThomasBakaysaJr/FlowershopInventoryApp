@@ -63,7 +63,15 @@ def render_production_viewer():
                     d_val = pd.to_datetime(row['due_date'])
                     st.write(d_val.strftime('%b %d'))
                 with c2:
-                    st.write(row['Product'])
+                    # Product Name + Badge
+                    p_name = row['Product']
+                    v_type = row.get('variant_type', 'STD')
+                    if v_type == 'DLX':
+                        st.markdown(f"{p_name} :purple[**DLX**]")
+                    elif v_type == 'PRM':
+                        st.markdown(f"{p_name} :orange[**PRM**]")
+                    else:
+                        st.write(p_name)
                 with c3:
                     st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
                 

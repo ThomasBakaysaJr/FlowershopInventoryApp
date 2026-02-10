@@ -179,10 +179,12 @@ def render():
     if start_date > end_date:
         return
 
-    # Search Bar
-    c_search, c_clear = st.columns([6, 1], vertical_alignment="bottom")
+    # Search Bar & Filter
+    c_search, c_filter, c_clear = st.columns([5, 2, 1], vertical_alignment="bottom")
     with c_search:
         search_term = st.text_input("Search", placeholder="Filter by product name...", label_visibility="collapsed", key="prod_dash_search")
+    with c_filter:
+        show_all = st.checkbox("Show All Items", value=False, help="Uncheck to see only items with a deficit.")
     with c_clear:
         if st.button("Clear", help="Clear Search", width="stretch"):
             st.session_state.prod_dash_search = ""
@@ -193,6 +195,10 @@ def render():
     # --- Fetch Data ---
     df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
     recipes_df = db_utils.get_all_recipes()
+
+    # Apply "Needed Only" Filter (Default)
+    if not show_all:
+        df = df[df['stock_on_hand'] < df['required_qty']]
 
     # Apply Search Filter
     if search_term:
@@ -214,21 +220,23 @@ def render():
 
 def render_card(row, recipes_df):
     with st.container(border=True):
-        # Layout: Image | Info (Name, Stats, Bar) | Actions (+/-)
-        c_img, c_info, c_act = st.columns([1, 2.5, 0.8], vertical_alignment="center")
-        
-        with c_img:
-            if pd.notna(row['image_data']):
-                st.image(row['image_data'], use_container_width=True)
-            else:
-                st.text("No Image")
+        # Layout: Info (Name, Stats, Bar) | Actions (+/-)
+        c_info, c_act = st.columns([3, 1], vertical_alignment="center")
 
         with c_info:
             # Name & ID
             name = f"[{row['product_id']}] {row['Product']}"
             if row['active'] == 0:
                 name = "⚠️ " + name
-            st.markdown(f"**{name}**")
+            
+            # Variant Badge
+            v_type = row.get('variant_type', 'STD')
+            if v_type == 'DLX':
+                st.markdown(f"**{name}** :blue[**[DLX]**]")
+            elif v_type == 'PRM':
+                st.markdown(f"**{name}** :red[**[PRM]**]")
+            else:
+                st.markdown(f"**{name}** :green[**[STD]**]")
             
             if pd.notna(row['note']) and row['note']:
                 st.caption(f"📝 {row['note']}")
@@ -281,4 +289,17 @@ def render_card(row, recipes_df):
                 args=(int(row['product_id']), row['Product'])
             )
         
-        recipe_display.render_recipe_expander(row['product_id'], recipes_df)
+        with st.expander("🌿 Recipe & Image"):
+            if pd.notna(row['image_data']):
+                st.image(row['image_data'], width=200)
+            
+            # Filter for recipe
+            r_data = recipes_df[recipes_df['product_id'] == row['product_id']]
+            if not r_data.empty:
+                st.dataframe(
+                    r_data[['Ingredient', 'Qty', 'Note']], 
+                    hide_index=True, 
+                    use_container_width=True
+                )
+            else:
+                st.caption("No ingredients listed.")
