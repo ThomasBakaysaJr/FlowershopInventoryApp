@@ -11,7 +11,7 @@ def render_goal_setter():
 
     with st.expander("📅 Schedule New Order", expanded=False):
         with st.form("add_goal_form"):
-            col_prod, col_date, col_qty = st.columns([2, 1, 1])
+            col_prod, col_date, col_time, col_qty = st.columns([2, 1, 0.7, 0.7])
             
             with col_prod:
                 # Map names to IDs
@@ -24,13 +24,16 @@ def render_goal_setter():
                 default_date = datetime.date.today() + datetime.timedelta(days=1)
                 due_date = st.date_input("Due Date", value=default_date, min_value=datetime.date.today())
             
+            with col_time:
+                time_slot = st.selectbox("Time", options=["Any", "AM", "PM"])
+            
             with col_qty:
                 qty = st.number_input("Quantity", min_value=1, value=10, step=1)
             
             submitted = st.form_submit_button("Add to Schedule", type="primary", width="stretch")
             
             if submitted:
-                if db_utils.add_production_goal(selected_id, str(due_date), qty):
+                if db_utils.add_production_goal(selected_id, str(due_date), qty, time_slot):
                     st.toast(f"Scheduled {qty}x {selected_name}!", icon="📅")
                     st.rerun()
                 else:

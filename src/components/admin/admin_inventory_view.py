@@ -3,6 +3,7 @@ import time
 import logging
 import pandas as pd
 from src.utils import db_utils
+from src.utils import settings_utils
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,28 @@ def render_stock_levels(raw_inventory_df):
         raw_inventory_df['bundle_count'] = pd.to_numeric(raw_inventory_df['bundle_count'], errors='coerce').fillna(1).astype(int)
 
     st.header("Current Stock Levels")
+    
+    # --- LOW STOCK WARNING LOGIC ---
+    if not raw_inventory_df.empty:
+        settings = settings_utils.load_settings()
+        threshold = settings.get('low_stock_threshold', 25)
+        
+        low_stock_items = raw_inventory_df[raw_inventory_df['count_on_hand'] < threshold]
+        
+        if not low_stock_items.empty:
+            with st.expander(f"⚠️ **Low Stock Alert**: {len(low_stock_items)} items below {threshold}", expanded=True):
+                st.dataframe(
+                    low_stock_items[['name', 'count_on_hand', 'category']].sort_values('count_on_hand'),
+                    column_config={
+                        "name": "Item",
+                        "count_on_hand": st.column_config.NumberColumn("Stock", format="%d"),
+                        "category": "Category"
+                    },
+                    hide_index=True,
+                    width="stretch"
+                )
+    # -------------------------------
+
     st.text("Please review any changes before saving.")    
 
     if not raw_inventory_df.empty:

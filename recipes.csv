@@ -1,0 +1,357 @@
+product_id,Product,Price,Type,Product Note,item_id,Ingredient,Note,Qty,Category
+1001,1 Rose Dozen Red Standard,129,Standard,,207,Roses Red,,12,stem
+1001,1 Rose Dozen Red Standard,129,Standard,,,Any stem,Greenery,1,stem
+1001,1 Rose Dozen Red Standard,129,Standard,,168,Vase Jordan Red,,1,hardgood
+1002,1 Rose Dozen Red Deluxe,140,Deluxe,,207,Roses Red,,12,stem
+1002,1 Rose Dozen Red Deluxe,140,Deluxe,,,Any stem,Greenery,1,stem
+1002,1 Rose Dozen Red Deluxe,140,Deluxe,,,Any stem,Filler,1,stem
+1002,1 Rose Dozen Red Deluxe,140,Deluxe,,168,Vase Jordan Red,,1,hardgood
+1003,1 Rose Dozen Red Premium,160,Premium,,207,Roses Red,,12,stem
+1003,1 Rose Dozen Red Premium,160,Premium,,,Any stem,Greenery,1,stem
+1003,1 Rose Dozen Red Premium,160,Premium,,,Any stem,Filler,1,stem
+1003,1 Rose Dozen Red Premium,160,Premium,,198,Lily Asiatic,,3,stem
+1003,1 Rose Dozen Red Premium,160,Premium,,168,Vase Jordan Red,,1,hardgood
+1004,1 Rose Dozen Yellow Standard,129,Standard,Match Color,210,Roses Yellow,,12,stem
+1004,1 Rose Dozen Yellow Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1004,1 Rose Dozen Yellow Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1005,1 Rose Dozen Yellow Deluxe,140,Deluxe,Match Color,210,Roses Yellow,,12,stem
+1005,1 Rose Dozen Yellow Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1005,1 Rose Dozen Yellow Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1005,1 Rose Dozen Yellow Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1006,1 Rose Dozen Yellow Premium,160,Premium,Match Color,210,Roses Yellow,,12,stem
+1006,1 Rose Dozen Yellow Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1006,1 Rose Dozen Yellow Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1006,1 Rose Dozen Yellow Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1006,1 Rose Dozen Yellow Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1007,1 Rose Dozen Pink Standard,129,Standard,,206,Roses Pink,,12,stem
+1007,1 Rose Dozen Pink Standard,129,Standard,,,Any stem,Greenery,1,stem
+1007,1 Rose Dozen Pink Standard,129,Standard,,167,Vase Jordan Pink,,1,hardgood
+1008,1 Rose Dozen Pink Deluxe,140,Deluxe,,206,Roses Pink,,12,stem
+1008,1 Rose Dozen Pink Deluxe,140,Deluxe,,,Any stem,Greenery,1,stem
+1008,1 Rose Dozen Pink Deluxe,140,Deluxe,,,Any stem,Filler,1,stem
+1008,1 Rose Dozen Pink Deluxe,140,Deluxe,,167,Vase Jordan Pink,,1,hardgood
+1009,1 Rose Dozen Pink Premium,160,Premium,,206,Roses Pink,,12,stem
+1009,1 Rose Dozen Pink Premium,160,Premium,,,Any stem,Greenery,1,stem
+1009,1 Rose Dozen Pink Premium,160,Premium,,,Any stem,Filler,1,stem
+1009,1 Rose Dozen Pink Premium,160,Premium,,198,Lily Asiatic,,3,stem
+1009,1 Rose Dozen Pink Premium,160,Premium,,167,Vase Jordan Pink,,1,hardgood
+1010,1 Rose Dozen Lavender Standard,129,Standard,Match Color,205,Roses Lavender,,12,stem
+1010,1 Rose Dozen Lavender Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1010,1 Rose Dozen Lavender Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1011,1 Rose Dozen Lavender Deluxe,140,Deluxe,Match Color,205,Roses Lavender,,12,stem
+1011,1 Rose Dozen Lavender Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1011,1 Rose Dozen Lavender Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1011,1 Rose Dozen Lavender Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1012,1 Rose Dozen Lavender Premium,160,Premium,Match Color,205,Roses Lavender,,12,stem
+1012,1 Rose Dozen Lavender Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1012,1 Rose Dozen Lavender Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1012,1 Rose Dozen Lavender Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1012,1 Rose Dozen Lavender Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1013,1 Rose Dozen White Standard,129,Standard,Match Color,209,Roses White,,12,stem
+1013,1 Rose Dozen White Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1013,1 Rose Dozen White Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1014,1 Rose Dozen White Deluxe,140,Deluxe,Match Color,209,Roses White,,12,stem
+1014,1 Rose Dozen White Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1014,1 Rose Dozen White Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1014,1 Rose Dozen White Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1015,1 Rose Dozen White Premium,160,Premium,Match Color,209,Roses White,,12,stem
+1015,1 Rose Dozen White Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1015,1 Rose Dozen White Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1015,1 Rose Dozen White Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1015,1 Rose Dozen White Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1016,1 Rose Dozen Orange Standard,129,Standard,Match Color,224,Roses Orange,,12,stem
+1016,1 Rose Dozen Orange Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1016,1 Rose Dozen Orange Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1017,1 Rose Dozen Orange Deluxe,140,Deluxe,Match Color,224,Roses Orange,,12,stem
+1017,1 Rose Dozen Orange Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1017,1 Rose Dozen Orange Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1017,1 Rose Dozen Orange Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1018,1 Rose Dozen Orange Premium,160,Premium,Match Color,224,Roses Orange,,12,stem
+1018,1 Rose Dozen Orange Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1018,1 Rose Dozen Orange Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1018,1 Rose Dozen Orange Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1018,1 Rose Dozen Orange Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1019,1 Rose Dozen Bicolor Standard,129,Standard,Match Color,225,Roses Bicolor,,12,stem
+1019,1 Rose Dozen Bicolor Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1019,1 Rose Dozen Bicolor Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1020,1 Rose Dozen Bicolor Deluxe,140,Deluxe,Match Color,225,Roses Bicolor,,12,stem
+1020,1 Rose Dozen Bicolor Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1020,1 Rose Dozen Bicolor Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1020,1 Rose Dozen Bicolor Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1021,1 Rose Dozen Bicolor Premium,160,Premium,Match Color,225,Roses Bicolor,,12,stem
+1021,1 Rose Dozen Bicolor Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1021,1 Rose Dozen Bicolor Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1021,1 Rose Dozen Bicolor Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1021,1 Rose Dozen Bicolor Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1022,1 Rose Dozen Aggie Standard,129,Standard,Match Color,226,Roses Aggie,,12,stem
+1022,1 Rose Dozen Aggie Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1022,1 Rose Dozen Aggie Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1023,1 Rose Dozen Aggie Deluxe,140,Deluxe,Match Color,226,Roses Aggie,,12,stem
+1023,1 Rose Dozen Aggie Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1023,1 Rose Dozen Aggie Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1023,1 Rose Dozen Aggie Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1024,1 Rose Dozen Aggie Premium,160,Premium,Match Color,226,Roses Aggie,,12,stem
+1024,1 Rose Dozen Aggie Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1024,1 Rose Dozen Aggie Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1024,1 Rose Dozen Aggie Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1024,1 Rose Dozen Aggie Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1025,1 Rose Dozen Mix Standard,129,Standard,Match Color,,Any rose,Generic,12,stem
+1025,1 Rose Dozen Mix Standard,129,Standard,Match Color,,Any stem,Greenery,1,stem
+1025,1 Rose Dozen Mix Standard,129,Standard,Match Color,169,Vase Jordan Silver,,1,hardgood
+1026,1 Rose Dozen Mix Deluxe,140,Deluxe,Match Color,,Any rose,Generic,12,stem
+1026,1 Rose Dozen Mix Deluxe,140,Deluxe,Match Color,,Any stem,Greenery,1,stem
+1026,1 Rose Dozen Mix Deluxe,140,Deluxe,Match Color,,Any stem,Filler,1,stem
+1026,1 Rose Dozen Mix Deluxe,140,Deluxe,Match Color,169,Vase Jordan Silver,,1,hardgood
+1027,1 Rose Dozen Mix Premium,160,Premium,Match Color,,Any rose,Generic,12,stem
+1027,1 Rose Dozen Mix Premium,160,Premium,Match Color,,Any stem,Greenery,1,stem
+1027,1 Rose Dozen Mix Premium,160,Premium,Match Color,,Any stem,Filler,1,stem
+1027,1 Rose Dozen Mix Premium,160,Premium,Match Color,198,Lily Asiatic,,3,stem
+1027,1 Rose Dozen Mix Premium,160,Premium,Match Color,169,Vase Jordan Silver,,1,hardgood
+1028,Rose Half Dozen Red Standard,60,Standard,,207,Roses Red,,6,stem
+1028,Rose Half Dozen Red Standard,60,Standard,,,Any stem,Filler,1,stem
+1028,Rose Half Dozen Red Standard,60,Standard,,150,Hurricane,,1,hardgood
+1029,Rose Half Dozen Red Deluxe,80,Deluxe,,207,Roses Red,,6,stem
+1029,Rose Half Dozen Red Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1029,Rose Half Dozen Red Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1029,Rose Half Dozen Red Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1030,Rose Half Dozen Yellow Standard,60,Standard,,210,Roses Yellow,,6,stem
+1030,Rose Half Dozen Yellow Standard,60,Standard,,,Any stem,Filler,1,stem
+1030,Rose Half Dozen Yellow Standard,60,Standard,,150,Hurricane,,1,hardgood
+1031,Rose Half Dozen Yellow Deluxe,80,Deluxe,,210,Roses Yellow,,6,stem
+1031,Rose Half Dozen Yellow Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1031,Rose Half Dozen Yellow Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1031,Rose Half Dozen Yellow Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1032,Rose Half Dozen Pink Standard,60,Standard,,206,Roses Pink,,6,stem
+1032,Rose Half Dozen Pink Standard,60,Standard,,,Any stem,Filler,1,stem
+1032,Rose Half Dozen Pink Standard,60,Standard,,150,Hurricane,,1,hardgood
+1033,Rose Half Dozen Pink Deluxe,80,Deluxe,,206,Roses Pink,,6,stem
+1033,Rose Half Dozen Pink Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1033,Rose Half Dozen Pink Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1033,Rose Half Dozen Pink Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1034,Rose Half Dozen Lavender Standard,60,Standard,,205,Roses Lavender,,6,stem
+1034,Rose Half Dozen Lavender Standard,60,Standard,,,Any stem,Filler,1,stem
+1034,Rose Half Dozen Lavender Standard,60,Standard,,150,Hurricane,,1,hardgood
+1035,Rose Half Dozen Lavender Deluxe,80,Deluxe,,205,Roses Lavender,,6,stem
+1035,Rose Half Dozen Lavender Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1035,Rose Half Dozen Lavender Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1035,Rose Half Dozen Lavender Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1036,Rose Half Dozen White Standard,60,Standard,,209,Roses White,,6,stem
+1036,Rose Half Dozen White Standard,60,Standard,,,Any stem,Filler,1,stem
+1036,Rose Half Dozen White Standard,60,Standard,,150,Hurricane,,1,hardgood
+1037,Rose Half Dozen White Deluxe,80,Deluxe,,209,Roses White,,6,stem
+1037,Rose Half Dozen White Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1037,Rose Half Dozen White Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1037,Rose Half Dozen White Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1038,Rose Half Dozen Orange Standard,60,Standard,,224,Roses Orange,,6,stem
+1038,Rose Half Dozen Orange Standard,60,Standard,,,Any stem,Filler,1,stem
+1038,Rose Half Dozen Orange Standard,60,Standard,,150,Hurricane,,1,hardgood
+1039,Rose Half Dozen Orange Deluxe,80,Deluxe,,224,Roses Orange,,6,stem
+1039,Rose Half Dozen Orange Deluxe,80,Deluxe,,,Any stem,Filler,1,stem
+1039,Rose Half Dozen Orange Deluxe,80,Deluxe,,198,Lily Asiatic,,3,stem
+1039,Rose Half Dozen Orange Deluxe,80,Deluxe,,150,Hurricane,,1,hardgood
+1040,18 Roses Red Standard,165,Standard,,207,Roses Red,,18,stem
+1040,18 Roses Red Standard,165,Standard,,,Any stem,Greenery,1,stem
+1041,18 Roses Red Deluxe,180,Deluxe,,207,Roses Red,,18,stem
+1041,18 Roses Red Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1041,18 Roses Red Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1042,18 Roses Red Premium,216,Premium,,207,Roses Red,,18,stem
+1042,18 Roses Red Premium,216,Premium,,,Any stem,Greenery,1,stem
+1042,18 Roses Red Premium,216,Premium,,,Any stem,Filler,1,stem
+1042,18 Roses Red Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1043,18 Roses Yellow Standard,165,Standard,,210,Roses Yellow,,18,stem
+1043,18 Roses Yellow Standard,165,Standard,,,Any stem,Greenery,1,stem
+1044,18 Roses Yellow Deluxe,180,Deluxe,,210,Roses Yellow,,18,stem
+1044,18 Roses Yellow Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1044,18 Roses Yellow Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1045,18 Roses Yellow Premium,216,Premium,,210,Roses Yellow,,18,stem
+1045,18 Roses Yellow Premium,216,Premium,,,Any stem,Greenery,1,stem
+1045,18 Roses Yellow Premium,216,Premium,,,Any stem,Filler,1,stem
+1045,18 Roses Yellow Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1046,18 Roses Pink Standard,165,Standard,,206,Roses Pink,,18,stem
+1046,18 Roses Pink Standard,165,Standard,,,Any stem,Greenery,1,stem
+1047,18 Roses Pink Deluxe,180,Deluxe,,206,Roses Pink,,18,stem
+1047,18 Roses Pink Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1047,18 Roses Pink Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1048,18 Roses Pink Premium,216,Premium,,206,Roses Pink,,18,stem
+1048,18 Roses Pink Premium,216,Premium,,,Any stem,Greenery,1,stem
+1048,18 Roses Pink Premium,216,Premium,,,Any stem,Filler,1,stem
+1048,18 Roses Pink Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1049,18 Roses Lavender Standard,165,Standard,,205,Roses Lavender,,18,stem
+1049,18 Roses Lavender Standard,165,Standard,,,Any stem,Greenery,1,stem
+1050,18 Roses Lavender Deluxe,180,Deluxe,,205,Roses Lavender,,18,stem
+1050,18 Roses Lavender Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1050,18 Roses Lavender Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1051,18 Roses Lavender Premium,216,Premium,,205,Roses Lavender,,18,stem
+1051,18 Roses Lavender Premium,216,Premium,,,Any stem,Greenery,1,stem
+1051,18 Roses Lavender Premium,216,Premium,,,Any stem,Filler,1,stem
+1051,18 Roses Lavender Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1052,18 Roses White Standard,165,Standard,,209,Roses White,,18,stem
+1052,18 Roses White Standard,165,Standard,,,Any stem,Greenery,1,stem
+1053,18 Roses White Deluxe,180,Deluxe,,209,Roses White,,18,stem
+1053,18 Roses White Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1053,18 Roses White Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1054,18 Roses White Premium,216,Premium,,209,Roses White,,18,stem
+1054,18 Roses White Premium,216,Premium,,,Any stem,Greenery,1,stem
+1054,18 Roses White Premium,216,Premium,,,Any stem,Filler,1,stem
+1054,18 Roses White Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1055,18 Roses Orange Standard,165,Standard,,224,Roses Orange,,18,stem
+1055,18 Roses Orange Standard,165,Standard,,,Any stem,Greenery,1,stem
+1056,18 Roses Orange Deluxe,180,Deluxe,,224,Roses Orange,,18,stem
+1056,18 Roses Orange Deluxe,180,Deluxe,,,Any stem,Greenery,1,stem
+1056,18 Roses Orange Deluxe,180,Deluxe,,,Any stem,Filler,1,stem
+1057,18 Roses Orange Premium,216,Premium,,224,Roses Orange,,18,stem
+1057,18 Roses Orange Premium,216,Premium,,,Any stem,Greenery,1,stem
+1057,18 Roses Orange Premium,216,Premium,,,Any stem,Filler,1,stem
+1057,18 Roses Orange Premium,216,Premium,,198,Lily Asiatic,,3,stem
+1058,Color Me Yours Standard,85,Standard,,208,Roses Spray,,12,stem
+1058,Color Me Yours Standard,85,Standard,,,Any stem,Greenery,1,stem
+1059,Color Me Yours Standard,85,Standard,,,Any rose,Generic,12,stem
+1059,Color Me Yours Standard,85,Standard,,,Any stem,Greenery,1,stem
+1059,Color Me Yours Standard,85,Standard,,159,Vase Smoky,,1,hardgood
+1060,Color Me Yours Deluxe,99,Deluxe,,,Any rose,Generic,12,stem
+1060,Color Me Yours Deluxe,99,Deluxe,,,Any stem,Greenery,2,stem
+1060,Color Me Yours Deluxe,99,Deluxe,,,Any stem,Filler,1,stem
+1060,Color Me Yours Deluxe,99,Deluxe,,159,Vase Smoky,,1,hardgood
+1061,Color Me Yours Premium,120,Premium,,,Any rose,Generic,12,stem
+1061,Color Me Yours Premium,120,Premium,,,Any stem,Greenery,2,stem
+1061,Color Me Yours Premium,120,Premium,,,Any stem,Filler,1,stem
+1061,Color Me Yours Premium,120,Premium,,198,Lily Asiatic,,3,stem
+1061,Color Me Yours Premium,120,Premium,,159,Vase Smoky,,1,hardgood
+1062,Dozen Roses Wrapped Standard,90,Standard,,207,Roses Red,,12,stem
+1062,Dozen Roses Wrapped Standard,90,Standard,,,Any stem,Greenery,2,stem
+1062,Dozen Roses Wrapped Standard,90,Standard,,,Any stem,Filler,1,stem
+1062,Dozen Roses Wrapped Standard,90,Standard,,222,Wrap,,1,hardgood
+1063,Dozen Roses Wrapped Deluxe,105,Deluxe,Premium Blooms?,207,Roses Red,,12,stem
+1063,Dozen Roses Wrapped Deluxe,105,Deluxe,Premium Blooms?,,Any stem,Greenery,2,stem
+1063,Dozen Roses Wrapped Deluxe,105,Deluxe,Premium Blooms?,,Any stem,Filler,1,stem
+1063,Dozen Roses Wrapped Deluxe,105,Deluxe,Premium Blooms?,222,Wrap,,1,hardgood
+1064,Dozen Roses Wrapped Premium,125,Premium,,207,Roses Red,,12,stem
+1064,Dozen Roses Wrapped Premium,125,Premium,,,Any stem,Greenery,2,stem
+1064,Dozen Roses Wrapped Premium,125,Premium,,,Any stem,Filler,1,stem
+1064,Dozen Roses Wrapped Premium,125,Premium,,198,Lily Asiatic,,3,stem
+1064,Dozen Roses Wrapped Premium,125,Premium,,222,Wrap,,1,hardgood
+1065,Remember When Standard,135,Standard,,207,Roses Red,,4,stem
+1065,Remember When Standard,135,Standard,,184,Cremons,,4,stem
+1065,Remember When Standard,135,Standard,,198,Lily Asiatic,,2,stem
+1065,Remember When Standard,135,Standard,,178,Alstro,,6,stem
+1065,Remember When Standard,135,Standard,,175,Vase Gathering Pink,,1,hardgood
+1066,Remember When Deluxe,170,Deluxe,,207,Roses Red,,6,stem
+1066,Remember When Deluxe,170,Deluxe,,184,Cremons,,6,stem
+1066,Remember When Deluxe,170,Deluxe,,198,Lily Asiatic,,3,stem
+1066,Remember When Deluxe,170,Deluxe,,178,Alstro,,9,stem
+1066,Remember When Deluxe,170,Deluxe,,175,Vase Gathering Pink,,1,hardgood
+1067,Never Ending Love Standard,160,Standard,,198,Lily Asiatic,,3,stem
+1067,Never Ending Love Standard,160,Standard,,206,Roses Pink,,6,stem
+1067,Never Ending Love Standard,160,Standard,,182,Carns,,5,stem
+1067,Never Ending Love Standard,160,Standard,,189,Dianthus,,5,stem
+1067,Never Ending Love Standard,160,Standard,,167,Vase Jordan Pink,,1,hardgood
+1068,Never Ending Love Deluxe,190,Deluxe,,198,Lily Asiatic,,4,stem
+1068,Never Ending Love Deluxe,190,Deluxe,,206,Roses Pink,,9,stem
+1068,Never Ending Love Deluxe,190,Deluxe,,182,Carns,,7,stem
+1068,Never Ending Love Deluxe,190,Deluxe,,185,Daisies,Generic,7,stem
+1068,Never Ending Love Deluxe,190,Deluxe,,167,Vase Jordan Pink,,1,hardgood
+1069,Smitten Standard,155,Standard,,199,Lily Oriental,,2,stem
+1069,Smitten Standard,155,Standard,,206,Roses Pink,,6,stem
+1069,Smitten Standard,155,Standard,,216,Stock,,4,stem
+1069,Smitten Standard,155,Standard,,220,Wax,,2,stem
+1069,Smitten Standard,155,Standard,,169,Vase Jordan Silver,,1,hardgood
+1070,Smitten Deluxe,180,Deluxe,,199,Lily Oriental,,3,stem
+1070,Smitten Deluxe,180,Deluxe,,206,Roses Pink,,8,stem
+1070,Smitten Deluxe,180,Deluxe,,216,Stock,,4,stem
+1070,Smitten Deluxe,180,Deluxe,,220,Wax,,2,stem
+1070,Smitten Deluxe,180,Deluxe,,169,Vase Jordan Silver,,1,hardgood
+1071,Smitten Premium,215,Premium,,199,Lily Oriental,,4,stem
+1071,Smitten Premium,215,Premium,,206,Roses Pink,,12,stem
+1071,Smitten Premium,215,Premium,,216,Stock,,4,stem
+1071,Smitten Premium,215,Premium,,220,Wax,,2,stem
+1071,Smitten Premium,215,Premium,,169,Vase Jordan Silver,,1,hardgood
+1072,Tulip Mania Standard,125,Standard,,218,Tulips,,10,stem
+1072,Tulip Mania Standard,125,Standard,,216,Stock,,4,stem
+1072,Tulip Mania Standard,125,Standard,,220,Wax,,2,stem
+1072,Tulip Mania Standard,125,Standard,,162,Vase Milk Jug,,1,hardgood
+1073,Kissed by the Sun Standard,125,Standard,,218,Tulips,,4,stem
+1073,Kissed by the Sun Standard,125,Standard,,217,Sunflowers,,1,stem
+1073,Kissed by the Sun Standard,125,Standard,,207,Roses Red,,5,stem
+1073,Kissed by the Sun Standard,125,Standard,,188,Green Ball,,3,stem
+1073,Kissed by the Sun Standard,125,Standard,,215,Statice,,2,stem
+1073,Kissed by the Sun Standard,125,Standard,,221,Raffia,,1,stem
+1073,Kissed by the Sun Standard,125,Standard,,176,Vase White Bowl,,1,hardgood
+1074,Wanted Red Standard,75,Standard,,182,Carns,,12,stem
+1074,Wanted Red Standard,75,Standard,,180,Baby Breath,,2,stem
+1074,Wanted Red Standard,75,Standard,,223,Bow,,1,hardgood
+1074,Wanted Red Standard,75,Standard,,153,Vase Red Square,,1,hardgood
+1075,Wanted Red Deluxe,100,Deluxe,,182,Carns,,6,stem
+1075,Wanted Red Deluxe,100,Deluxe,,207,Roses Red,,6,stem
+1075,Wanted Red Deluxe,100,Deluxe,,180,Baby Breath,,2,stem
+1075,Wanted Red Deluxe,100,Deluxe,,223,Bow,,1,hardgood
+1075,Wanted Red Deluxe,100,Deluxe,,153,Vase Red Square,,1,hardgood
+1076,Wanted Pink Standard,75,Standard,,182,Carns,,12,stem
+1076,Wanted Pink Standard,75,Standard,,180,Baby Breath,,2,stem
+1076,Wanted Pink Standard,75,Standard,,223,Bow,,1,hardgood
+1076,Wanted Pink Standard,75,Standard,,157,Vase Mauve,,1,hardgood
+1077,Wanted Pink Deluxe,100,Deluxe,,182,Carns,,6,stem
+1077,Wanted Pink Deluxe,100,Deluxe,,206,Roses Pink,,6,stem
+1077,Wanted Pink Deluxe,100,Deluxe,,180,Baby Breath,,2,stem
+1077,Wanted Pink Deluxe,100,Deluxe,,223,Bow,,1,hardgood
+1077,Wanted Pink Deluxe,100,Deluxe,,157,Vase Mauve,,1,hardgood
+1078,Sunshine of My Life Standard,115,Standard,,217,Sunflowers,,3,stem
+1078,Sunshine of My Life Standard,115,Standard,,218,Tulips,,3,stem
+1078,Sunshine of My Life Standard,115,Standard,,189,Dianthus,,4,stem
+1078,Sunshine of My Life Standard,115,Standard,,184,Cremons,,4,stem
+1078,Sunshine of My Life Standard,115,Standard,,178,Alstro,,3,stem
+1078,Sunshine of My Life Standard,115,Standard,,221,Raffia,,1,stem
+1078,Sunshine of My Life Standard,115,Standard,,162,Vase Milk Jug,,1,hardgood
+1079,Sunshine of My Life Deluxe,140,Deluxe,,217,Sunflowers,,3,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,218,Tulips,,3,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,189,Dianthus,,4,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,184,Cremons,,4,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,178,Alstro,,3,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,207,Roses Red,,3,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,221,Raffia,,1,stem
+1079,Sunshine of My Life Deluxe,140,Deluxe,,162,Vase Milk Jug,,1,hardgood
+1080,Sunshine of My Life Premium,175,Premium,,217,Sunflowers,,4,stem
+1080,Sunshine of My Life Premium,175,Premium,,218,Tulips,,4,stem
+1080,Sunshine of My Life Premium,175,Premium,,189,Dianthus,,5,stem
+1080,Sunshine of My Life Premium,175,Premium,,184,Cremons,,4,stem
+1080,Sunshine of My Life Premium,175,Premium,,178,Alstro,,4,stem
+1080,Sunshine of My Life Premium,175,Premium,,207,Roses Red,,5,stem
+1080,Sunshine of My Life Premium,175,Premium,,221,Raffia,,1,stem
+1080,Sunshine of My Life Premium,175,Premium,,162,Vase Milk Jug,,1,hardgood
+1081,You're the Bees Knees Standard,60,Standard,,210,Roses Yellow,,3,stem
+1081,You're the Bees Knees Standard,60,Standard,,185,Daisies,Generic,2,stem
+1081,You're the Bees Knees Standard,60,Standard,,183,Mini Carns,,2,stem
+1081,You're the Bees Knees Standard,60,Standard,,149,Mug,,1,hardgood
+1082,Texas Dreamin Standard,104,Standard,,207,Roses Red,,3,stem
+1082,Texas Dreamin Standard,104,Standard,,205,Roses Lavender,,3,stem
+1082,Texas Dreamin Standard,104,Standard,,182,Carns,,3,stem
+1082,Texas Dreamin Standard,104,Standard,,182,Carns,,3,stem
+1082,Texas Dreamin Standard,104,Standard,,178,Alstro,,4,stem
+1082,Texas Dreamin Standard,104,Standard,,215,Statice,,2,stem
+1082,Texas Dreamin Standard,104,Standard,,154,Vase Bi-Color,,1,hardgood
+1083,Texas Dreamin Deluxe,135,Deluxe,,207,Roses Red,,5,stem
+1083,Texas Dreamin Deluxe,135,Deluxe,,205,Roses Lavender,,5,stem
+1083,Texas Dreamin Deluxe,135,Deluxe,,182,Carns,,6,stem
+1083,Texas Dreamin Deluxe,135,Deluxe,,178,Alstro,,4,stem
+1083,Texas Dreamin Deluxe,135,Deluxe,,215,Statice,,2,stem
+1083,Texas Dreamin Deluxe,135,Deluxe,,154,Vase Bi-Color,,1,hardgood
+1084,Disco Baby Standard,75,Standard,,,Any stem,Eucalyptus,1,stem
+1084,Disco Baby Standard,75,Standard,,207,Roses Red,,3,stem
+1084,Disco Baby Standard,75,Standard,,182,Carns,,5,stem
+1084,Disco Baby Standard,75,Standard,,227,Disco Large,,1,hardgood
+1084,Disco Baby Standard,75,Standard,,228,Disco Small,,2,hardgood
+1084,Disco Baby Standard,75,Standard,,156,Vase Bubble,,1,hardgood
+1085,Baby Blue Eyes Standard,135,Standard,,186,Delphinium,,5,stem
+1085,Baby Blue Eyes Standard,135,Standard,,219,Veronica,,5,stem
+1085,Baby Blue Eyes Standard,135,Standard,,197,Larkspur,,2,stem
+1085,Baby Blue Eyes Standard,135,Standard,,178,Alstro,,3,stem
+1085,Baby Blue Eyes Standard,135,Standard,,182,Carns,,5,stem
+1085,Baby Blue Eyes Standard,135,Standard,,,Any stem,Eucalyptus,1,stem
+1085,Baby Blue Eyes Standard,135,Standard,,155,Vase Blue,,1,hardgood
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,186,Delphinium,,5,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,219,Veronica,,5,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,197,Larkspur,,2,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,178,Alstro,,3,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,182,Carns,,5,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,,Any stem,Eucalyptus,1,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,209,Roses White,,4,stem
+1086,Baby Blue Eyes Deluxe,165,Deluxe,,155,Vase Blue,,1,hardgood

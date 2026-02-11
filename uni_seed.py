@@ -28,8 +28,13 @@ def seed_from_images():
         return
 
     print(f"📂 Scanning {IMAGE_DIR} for new products...")
+    print(f"   (Absolute path: {os.path.abspath(IMAGE_DIR)})")
     
     files = glob.glob(os.path.join(IMAGE_DIR, "*"))
+    print(f"   Found {len(files)} files.")
+    if len(files) == 0:
+        print("⚠️  No files found. Please ensure your images are in the 'images/recipes' folder.")
+
     count = 0
     skipped = 0
     errors = 0
@@ -141,6 +146,7 @@ def seed_from_images():
                 count += 1
             else:
                 print(f"❌ Failed to create '{p_name}' (DB Error)")
+                print(f"   Check logs/app.log for details.")
                 errors += 1
 
     print("-" * 40)

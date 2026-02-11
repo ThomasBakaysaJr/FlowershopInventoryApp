@@ -42,6 +42,15 @@ def render_settings_panel():
     new_markup = st.number_input("Markup Multiplier", min_value=1.0, value=float(current_markup), step=0.1)
     
     st.divider()
+
+    # 3. Inventory Section
+    st.subheader("Inventory Alerts")
+    st.caption("Configure stock level warnings.")
+    
+    current_threshold = settings.get('low_stock_threshold', 25)
+    new_threshold = st.number_input("Low Stock Threshold", min_value=0, value=int(current_threshold), step=1, help="Items below this count will show a warning.")
+
+    st.divider()
     
     if st.button("💾 Save Settings", type="primary", width="stretch"):
         # Reconstruct settings object
@@ -61,6 +70,9 @@ def render_settings_panel():
             "additives": cleaned_additives,
             "markup": new_markup
         }
+        
+        # Save new threshold
+        new_settings['low_stock_threshold'] = int(new_threshold)
         
         if settings_utils.save_settings(new_settings):
             st.success("Settings saved successfully!")

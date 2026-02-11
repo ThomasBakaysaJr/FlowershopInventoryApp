@@ -2,6 +2,7 @@ import sqlite3
 import pandas as pd
 import os
 import logging
+import streamlit as st
 from typing import Optional, List, Tuple, Union
 import uuid
 from src.utils import utils
@@ -1155,13 +1156,18 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
         
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?
         ORDER BY pg.due_date ASC, p.display_name ASC
         """
         df = pd.read_sql_query(query, conn, params=(s_date, e_date))
+        
+        # Centralized cleanup: Ensure time_slot is always uppercase and stripped of whitespace
+        if 'time_slot' in df.columns:
+            df['time_slot'] = df['time_slot'].fillna('Any').astype(str).str.strip().str.upper()
+            
         return df
     except Exception as e:
         logger.error(f"get_production_goals_range: {e}")
@@ -1321,13 +1327,13 @@ def get_active_product_options() -> pd.DataFrame:
     finally:
         conn.close()
 
-def add_production_goal(product_id: int, due_date: str, qty_ordered: int) -> bool:
+def add_production_goal(product_id: int, due_date: str, qty_ordered: int, time_slot: str = 'Any') -> bool:
     """Adds a new production goal."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)", 
-                       (product_id, due_date, qty_ordered))
+        cursor.execute("INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled, time_slot) VALUES (?, ?, ?, 0, ?)", 
+                       (product_id, due_date, qty_ordered, time_slot))
         conn.commit()
         return True
     except sqlite3.Error as e:

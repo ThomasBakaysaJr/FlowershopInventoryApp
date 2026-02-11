@@ -30,6 +30,9 @@ def handle_log_production(goal_id, product_name):
 def trigger_generic_selection_modal(goal_id, generic_reqs):
     st.write("This recipe requires generic items. Please specify what was used.")
     
+    # Search Bar
+    search_term = st.text_input("Search Items", placeholder="Type to filter...", label_visibility="collapsed", key=f"search_gen_goal_{goal_id}")
+
     substitutions_to_make = []
     valid_form = True
     
@@ -51,6 +54,19 @@ def trigger_generic_selection_modal(goal_id, generic_reqs):
         if inventory_df.empty:
             st.warning(f"No items found for category '{category}' in inventory.")
             continue
+            
+        # Filter by search (keeping allocated items visible)
+        if search_term:
+            def is_allocated(row):
+                key = f"alloc_{goal_id}_{row['item_id']}"
+                return st.session_state.get(key, 0) > 0
+            
+            mask = (inventory_df['name'].str.contains(search_term, case=False, na=False)) | (inventory_df.apply(is_allocated, axis=1))
+            inventory_df = inventory_df[mask]
+            
+            if inventory_df.empty:
+                st.caption(f"No items match '{search_term}' in {category}.")
+                continue
 
         total_allocated = 0
         
@@ -164,6 +180,20 @@ def handle_undo_production(goal_id, product_name):
     if db_utils.undo_production(int(goal_id)):
         st.session_state['weekly_dash_toast'] = (f"Undid 1 {product_name}", "↩️")
 
+def handle_fulfill_slot(goals_data, product_name):
+    """Fulfills multiple goals in a slot sequentially until stock runs out."""
+    total_packed = 0
+    for g_id, g_needed in goals_data:
+        # Try to pack the full needed amount for this goal
+        # db_utils.fulfill_goal will automatically clamp to available stock
+        packed = db_utils.fulfill_goal(int(g_id), qty=int(g_needed))
+        total_packed += packed
+        if packed < g_needed:
+            break # Stock ran out
+            
+    if total_packed > 0:
+        st.session_state['weekly_dash_toast'] = (f"Packed {total_packed} {product_name}s!", "🚀")
+
 @st.fragment(run_every=5)
 def render():
     if 'weekly_dash_toast' in st.session_state:
@@ -200,6 +230,10 @@ def render():
     if not goals_df.empty:
         goals_df['due_date'] = pd.to_datetime(goals_df['due_date'])
         
+        # Sort by Time Slot (AM -> PM -> Any) within the date
+        goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
+        goals_df = goals_df.sort_values(by=['due_date', 'time_rank', 'Product', 'goal_id'])
+        
         unique_dates = goals_df['due_date'].dt.date.unique()
         for date_val in unique_dates:
             st.subheader(date_val.strftime('%A, %b %d'))
@@ -209,108 +243,132 @@ def render():
         st.info("No production goals set for this period.")
 
 def render_grid(week_data, recipes_df, key_suffix=""):
-    # Create a grid: 2 columns on desktop, stacks on mobile
-    for i in range(0, len(week_data), 2):
+    # Group by Product ID to combine entries into single cards
+    # Sort by Product Name first for the grid layout
+    week_data = week_data.sort_values(by=['Product', 'time_rank'])
+    unique_products = week_data['product_id'].unique()
+
+    # Create a grid: 2 columns on desktop
+    for i in range(0, len(unique_products), 2):
         grid_cols = st.columns(2)
         for j in range(2):
-            if i + j < len(week_data):
-                row = week_data.iloc[i + j]
-                needed = row['qty_ordered'] - row['qty_fulfilled']
-                stock = row['stock_on_hand']
+            if i + j < len(unique_products):
+                p_id = unique_products[i + j]
+                # Get all goals for this product on this day
+                group_df = week_data[week_data['product_id'] == p_id]
                 
                 with grid_cols[j]:
-                    with st.container(border=True):
-                        col_add, col_name, col_qty, col_undo = st.columns([0.7, 2.5, 1, 0.7], vertical_alignment="center", gap="small")
-                        
-                        with col_add:
-                            # Button Logic:
-                            # - Checkmark if done.
-                            # - Box (Pack) if needed > 0 AND stock > 0.
-                            # - Disabled/Warning if needed > 0 but NO stock.
-                            
-                            if needed <= 0:
-                                btn_label = "✅"
-                                handler = None
-                                is_disabled = True
-                            elif stock > 0:
-                                btn_label = "📦" # Pack from Stock
-                                handler = handle_fulfill_goal
-                                is_disabled = False
-                            else:
-                                btn_label = "➕" # Make New
-                                handler = handle_log_production
-                                is_disabled = False
+                    render_grouped_card(group_df, recipes_df, key_suffix)
 
-                            st.button(
-                                btn_label, 
-                                key=f"btn_{row['goal_id']}", 
-                                disabled=is_disabled, 
-                                width="stretch",
-                                on_click=handler,
-                                args=(row['goal_id'], row['Product'])
-                            )
-                        
-                        with col_name:
-                            display_name = f"[{row['product_id']}] {row['Product']}"
-                            if row['active'] == 0:
-                                display_name = f"⚠️ {display_name}"
-                            
-                            # Variant Badge
-                            v_type = row.get('variant_type', 'STD')
-                            if v_type == 'DLX':
-                                st.markdown(f"**{display_name}** :blue[**[DLX]**]")
-                            elif v_type == 'PRM':
-                                st.markdown(f"**{display_name}** :red[**[PRM]**]")
-                            else:
-                                st.markdown(f"**{display_name}** :green[**[STD]**]" if needed > 0 else f"~~{display_name}~~ :green[**[STD]**]")
+def render_grouped_card(group_df, recipes_df, key_suffix):
+    # Extract static info from the first row (since it's all the same product)
+    first_row = group_df.iloc[0]
+    product_name = first_row['Product']
+    product_id = first_row['product_id']
+    stock = first_row['stock_on_hand']
+    
+    with st.container(border=True):
+        # --- Header: Name + Variant ---
+        display_name = f"[{product_id}] {product_name}"
+        if first_row['active'] == 0:
+            display_name = f"⚠️ {display_name}"
+            
+        v_type = first_row.get('variant_type', 'STD')
+        if v_type == 'DLX':
+            st.markdown(f"**{display_name}** :blue[**[DLX]**]")
+        elif v_type == 'PRM':
+            st.markdown(f"**{display_name}** :red[**[PRM]**]")
+        else:
+            st.markdown(f"**{display_name}** :green[**[STD]**]")
 
-                            if pd.notna(row['note']) and row['note']:
-                                st.caption(f"📝 {row['note']}")
-                        
-                        with col_qty:
-                            st.markdown(f"**{needed}** left" if needed > 0 else "Done")
-                            if needed > 0:
-                                if stock > 0:
-                                    st.caption(f"In Cooler: {stock}")
-                                    
-                                    # Pack All Option
-                                    packable = int(min(stock, needed)) # Ensure int
-                                    if packable > 1:
-                                        st.button(
-                                            f"🚀 Pack {packable}", 
-                                            key=f"pack_all_{row['goal_id']}", 
-                                            width="stretch",
-                                            help="Pack all available items for this goal",
-                                            on_click=handle_fulfill_goal,
-                                            args=(row['goal_id'], row['Product'], packable)
-                                        )
-                                else:
-                                    st.caption(":red[Empty Cooler]")
+        # Stock Indicator
+        if stock > 0:
+            st.caption(f"🧊 Cooler Stock: **{stock}**")
+        else:
+            st.caption("🧊 Cooler Stock: :red[Empty]")
 
-                        with col_undo:
-                            # Only allow undo if something has been made this week
-                            can_undo = row['qty_fulfilled'] > 0
-                            with st.popover("➖", disabled=not can_undo, use_container_width=True, help="Undo last production"):
-                                st.write("⚠️ **Confirm Undo?**")
-                                st.button(
-                                    "Confirm", 
-                                    key=f"undo_{row['goal_id']}", 
-                                    width="stretch",
-                                    on_click=handle_undo_production,
-                                    args=(row['goal_id'], row['Product'])
-                                )
-                        
-                        with st.expander("🌿 Recipe & Image"):
-                            if pd.notna(row['image_data']):
-                                st.image(io.BytesIO(row['image_data']), width=200)
-                            
-                            # Filter for recipe
-                            r_data = recipes_df[recipes_df['product_id'] == row['product_id']]
-                            if not r_data.empty:
-                                st.dataframe(
-                                    r_data[['Ingredient', 'Qty', 'Note']], 
-                                    hide_index=True, 
-                                    width="stretch"
-                                )
-                            else:
-                                st.caption("No ingredients listed.")
+        st.divider()
+
+        # --- Aggregated Goals by Time Slot ---
+        # 1. Get unique slots in order (AM -> PM -> Any)
+        # group_df is already sorted by time_rank in render()
+        slots = group_df['time_slot'].unique()
+
+        for slot in slots:
+            # Filter rows for this slot (e.g. all AM goals)
+            slot_df = group_df[group_df['time_slot'] == slot]
+            
+            # Aggregate stats
+            qty_ordered = slot_df['qty_ordered'].sum()
+            qty_fulfilled = slot_df['qty_fulfilled'].sum()
+            needed = qty_ordered - qty_fulfilled
+            
+            # Determine Target Goal ID for Actions
+            # Priority: First goal that needs items.
+            # If all done, we target the last one (for Undo).
+            target_goal = None
+            pending_goals = slot_df[slot_df['qty_fulfilled'] < slot_df['qty_ordered']]
+            
+            if not pending_goals.empty:
+                target_goal = pending_goals.iloc[0]
+            else:
+                target_goal = slot_df.iloc[-1]
+            
+            goal_id = target_goal['goal_id']
+            
+            c_time, c_info, c_act = st.columns([0.8, 2, 1.2], vertical_alignment="center")
+            
+            with c_time:
+                if slot == 'AM':
+                    st.markdown(":blue[**AM**]")
+                elif slot == 'PM':
+                    st.markdown(":orange[**PM**]")
+                else:
+                    st.markdown("**Any**")
+            
+            with c_info:
+                if needed <= 0:
+                    st.markdown("✅ Done")
+                else:
+                    st.markdown(f"Need **{needed}**")
+            
+            with c_act:
+                if needed <= 0:
+                    # Find the last goal that actually has progress to undo
+                    undo_candidates = slot_df[slot_df['qty_fulfilled'] > 0]
+                    if not undo_candidates.empty:
+                        undo_goal = undo_candidates.iloc[-1]
+                        if st.button("↩️", key=f"undo_slot_{product_id}_{slot}{key_suffix}", help="Undo last item"):
+                            handle_undo_production(undo_goal['goal_id'], product_name)
+                            st.rerun()
+                else:
+                    # Pack or Make
+                    if stock > 0:
+                        packable = min(stock, needed)
+                        if packable > 1:
+                            # Show Single Pack AND Pack All
+                            b1, b2 = st.columns(2)
+                            with b1:
+                                st.button("📦", key=f"pack_1_{product_id}_{slot}{key_suffix}", help="Pack 1", on_click=handle_fulfill_goal, args=(goal_id, product_name))
+                            with b2:
+                                # Prepare list of (goal_id, needed) for this slot
+                                goals_to_pack = []
+                                for _, pg in pending_goals.iterrows():
+                                    rem = pg['qty_ordered'] - pg['qty_fulfilled']
+                                    goals_to_pack.append((pg['goal_id'], rem))
+                                st.button(f"🚀 {packable}", key=f"pack_all_{product_id}_{slot}{key_suffix}", help=f"Pack all {packable}", on_click=handle_fulfill_slot, args=(goals_to_pack, product_name))
+                        else:
+                            st.button("📦 Pack", key=f"pack_slot_{product_id}_{slot}{key_suffix}", on_click=handle_fulfill_goal, args=(goal_id, product_name))
+                    else:
+                        st.button("➕ Make", key=f"make_slot_{product_id}_{slot}{key_suffix}", on_click=handle_log_production, args=(goal_id, product_name))
+
+        # --- Recipe Expander ---
+        with st.expander("🌿 Recipe & Image"):
+            if pd.notna(first_row['image_data']):
+                st.image(io.BytesIO(first_row['image_data']), width=200)
+            
+            r_data = recipes_df[recipes_df['product_id'] == product_id]
+            if not r_data.empty:
+                st.dataframe(r_data[['Ingredient', 'Qty', 'Note']], hide_index=True, width="stretch")
+            else:
+                st.caption("No ingredients listed.")
