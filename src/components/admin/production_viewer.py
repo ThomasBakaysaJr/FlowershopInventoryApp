@@ -50,6 +50,14 @@ def render_production_viewer():
         # Create a working copy to avoid SettingWithCopyWarning
         goals_df = goals_df.copy()
         
+        # Ensure time_slot is clean (handle NaNs from SQL NULLs)
+        if 'time_slot' in goals_df.columns:
+            goals_df['time_slot'] = goals_df['time_slot'].fillna('Any').astype(str).str.strip().str.upper()
+        
+        # Sort by Date -> Product -> Time Rank (AM/PM/Any)
+        goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
+        goals_df = goals_df.sort_values(by=['due_date', 'Product', 'time_rank'])
+        
         # Indicate archived status
         if 'active' in goals_df.columns:
             goals_df['Product'] = goals_df.apply(
@@ -73,7 +81,15 @@ def render_production_viewer():
                 with c1:
                     # Handle string dates if they come back as strings from the range query
                     d_val = pd.to_datetime(row['due_date'])
-                    st.write(d_val.strftime('%b %d'))
+                    date_str = d_val.strftime('%b %d')
+                    
+                    t_slot = row.get('time_slot', 'ANY')
+                    if t_slot == 'AM':
+                        st.markdown(f"{date_str} :blue[**AM**]")
+                    elif t_slot == 'PM':
+                        st.markdown(f"{date_str} :orange[**PM**]")
+                    else:
+                        st.write(date_str)
                 with c2:
                     # Product Name + Badge
                     p_name = row['Product']

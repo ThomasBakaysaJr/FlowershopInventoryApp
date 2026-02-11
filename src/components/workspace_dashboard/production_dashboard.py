@@ -21,11 +21,50 @@ def handle_make_stock(product_id, product_name):
 def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
     st.write(f"Making **{product_name}**. Please specify generic items used.")
     
+    # Pre-calculate validation state to render button immediately
     substitutions_to_make = []
     valid_form = True
+    validation_data = []
     
-    # Loop through each requirement
     for req in generic_reqs:
+        category = req['category']
+        needed = req['qty']
+        
+        # Fetch inventory once
+        inventory_df = db_utils.get_items_by_category(category)
+        
+        current_allocated = 0
+        if not inventory_df.empty:
+            for _, item in inventory_df.iterrows():
+                key = f"stock_alloc_{product_id}_{item['item_id']}"
+                val = st.session_state.get(key, 0)
+                if val > 0:
+                    substitutions_to_make.append((item['item_id'], val))
+                    current_allocated += val
+        
+        validation_data.append({
+            'req': req,
+            'inventory_df': inventory_df,
+            'allocated': current_allocated
+        })
+
+    # Render Button at the top
+    if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch', key=f"confirm_gen_{product_id}"):
+        if db_utils.produce_stock(product_id, substitutions=substitutions_to_make):
+            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} with details!", "📦")
+            st.rerun()
+            
+    st.divider()
+    
+    # Search Bar
+    search_term = st.text_input("Search Items", placeholder="Type to filter...", label_visibility="collapsed", key=f"search_gen_{product_id}")
+
+    # Render Inputs
+    for data in validation_data:
+        req = data['req']
+        inventory_df = data['inventory_df']
+        allocated_qty = data['allocated']
+        
         category = req['category']
         needed = req['qty']
         note = req.get('note')
@@ -36,43 +75,41 @@ def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
             label += f" ({note})"
         st.markdown(label)
         
-        # Fetch available items in this category
-        inventory_df = db_utils.get_items_by_category(category) 
-        
         if inventory_df.empty:
             st.warning(f"No items found for category '{category}' in inventory.")
             continue
+            
+        # Filter by search
+        if search_term:
+            def is_allocated(row):
+                key = f"stock_alloc_{product_id}_{row['item_id']}"
+                return st.session_state.get(key, 0) > 0
+            
+            mask = (inventory_df['name'].str.contains(search_term, case=False, na=False)) | (inventory_df.apply(is_allocated, axis=1))
+            inventory_df = inventory_df[mask]
+            
+            if inventory_df.empty:
+                st.caption(f"No items match '{search_term}' in {category}.")
+                continue
 
-        total_allocated = 0
-        
-        # Dynamic inputs for allocation
+        # Dynamic inputs
         for _, item in inventory_df.iterrows():
             cols = st.columns([3, 1])
             with cols[0]:
                 st.write(f"{item['name']} (Stock: {item['count_on_hand']})")
             with cols[1]:
-                allocated = st.number_input(
+                st.number_input(
                     "Use", 
                     min_value=0, 
                     step=1,
                     key=f"stock_alloc_{product_id}_{item['item_id']}",
                     label_visibility="collapsed"
                 )
-            
-            if allocated > 0:
-                substitutions_to_make.append((item['item_id'], allocated))
-                total_allocated += allocated
         
-        if total_allocated != needed:
-            st.warning(f"Selected {total_allocated} / {needed} {category}s.")
+        if allocated_qty != needed:
+            st.warning(f"Selected {allocated_qty} / {needed} {category}s.")
         else:
             st.success(f"✅ {category} requirements met.")
-
-    st.divider()
-    if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch'):
-        if db_utils.produce_stock(product_id, substitutions=substitutions_to_make):
-            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} with details!", "📦")
-            st.rerun()
 
 @st.dialog("📝 Adjust Recipe & Make")
 def trigger_adjustment_modal(product_id, product_name):
@@ -217,7 +254,7 @@ def render():
     # Sort by Product Family (Base Name) then Variant (STD -> DLX -> PRM)
     df['sort_rank'] = df['variant_type'].map({'STD': 0, 'DLX': 1, 'PRM': 2}).fillna(3)
     df['sort_base'] = df['Product'].str.replace(r'\s+(Standard|Deluxe|Premium)$', '', regex=True)
-    
+
     df = df.sort_values(by=['sort_base', 'sort_rank'], ascending=[True, True])
 
     # --- Render Grid ---
@@ -243,13 +280,14 @@ def render_card(row, recipes_df):
             
             # Variant Badge
             v_type = row.get('variant_type', 'STD')
+            variant_str = ":green[**[STD]**]"
             if v_type == 'DLX':
-                st.markdown(f"**{name}** :blue[**[DLX]**]")
+                variant_str = ":blue[**[DLX]**]"
             elif v_type == 'PRM':
-                st.markdown(f"**{name}** :red[**[PRM]**]")
-            else:
-                st.markdown(f"**{name}** :green[**[STD]**]")
-            
+                variant_str = ":red[**[PRM]**]"
+
+            st.markdown(f"**{name}** {variant_str}")
+
             if pd.notna(row['note']) and row['note']:
                 st.caption(f"📝 {row['note']}")
             
@@ -259,7 +297,7 @@ def render_card(row, recipes_df):
             
             # Health Bar Calculation
             if needed > 0:
-                progress = min(1.0, stock / needed)
+                progress = max(0.0, min(1.0, stock / needed))
             else:
                 progress = 1.0 if stock > 0 else 0.0
             
@@ -297,6 +335,7 @@ def render_card(row, recipes_df):
                 "➖", 
                 key=f"undo_stock_{row['product_id']}", 
                 width="stretch",
+                disabled=stock <= 0,
                 on_click=handle_undo_stock,
                 args=(int(row['product_id']), row['Product'])
             )

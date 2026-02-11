@@ -83,6 +83,7 @@ def initialize_database(db_path='inventory.db', reset=False):
                 due_date DATE,
                 qty_ordered INTEGER DEFAULT 0,
                 qty_fulfilled INTEGER DEFAULT 0,
+                time_slot TEXT DEFAULT 'Any',
                 FOREIGN KEY(product_id) REFERENCES products(product_id)
             )
         ''')
@@ -99,6 +100,17 @@ def initialize_database(db_path='inventory.db', reset=False):
                 FOREIGN KEY(product_id) REFERENCES products(product_id)
             )
         ''')
+
+        # --- MIGRATION: Ensure time_slot exists (for existing DBs) ---
+        cursor.execute("PRAGMA table_info(production_goals)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'time_slot' not in columns:
+            try:
+                cursor.execute("ALTER TABLE production_goals ADD COLUMN time_slot TEXT DEFAULT 'Any'")
+                logger.info("Migrated production_goals: Added time_slot column.")
+                print("✅ Migrated database: Added 'time_slot' to production_goals.")
+            except sqlite3.Error as e:
+                logger.error(f"Migration failed: {e}")
 
         connection.commit()
         logger.info(f"Database initialized successfully at '{db_path}'.")

@@ -12,7 +12,8 @@ DEFAULT_SETTINGS = {
             {"name": "Labor", "type": "Percentage", "value": 20.0}
         ],
         "markup": 3.5
-    }
+    },
+    "low_stock_threshold": 25
 }
 
 def load_settings():
