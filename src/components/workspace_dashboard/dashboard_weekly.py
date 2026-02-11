@@ -359,7 +359,7 @@ def render_grouped_card(group_df, recipes_df, key_suffix):
 
         # --- Recipe Expander ---
         with st.expander("🌿 Recipe & Image"):
-            if pd.notna(first_row['image_data']):
+            if 'image_data' in first_row and pd.notna(first_row['image_data']):
                 st.image(io.BytesIO(first_row['image_data']), width=200)
             
             r_data = recipes_df[recipes_df['product_id'] == product_id]
