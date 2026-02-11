@@ -194,7 +194,7 @@ def handle_fulfill_slot(goals_data, product_name):
     if total_packed > 0:
         st.session_state['weekly_dash_toast'] = (f"Packed {total_packed} {product_name}s!", "🚀")
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=120) # re-run every two minutes
 def render():
     if 'weekly_dash_toast' in st.session_state:
         msg, icon = st.session_state.pop('weekly_dash_toast')
