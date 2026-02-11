@@ -11,7 +11,16 @@ logger = logging.getLogger(__name__)
 DB_PATH = 'inventory.db'
 
 def get_connection() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH)
+    # 1. timeout=30 means "If the DB is locked, wait 30 seconds before crashing"
+    conn = sqlite3.connect(DB_PATH, timeout=30) 
+    
+    # 2. WAL Mode allows simultaneous reading and writing
+    conn.execute("PRAGMA journal_mode=WAL")
+    
+    # 3. Protect your data integrity (prevents deleting used inventory items)
+    conn.execute("PRAGMA foreign_keys = ON")
+    
+    return conn
 
 def filter_dataframe_by_terms(df: pd.DataFrame, column: str, search_term: str) -> pd.DataFrame:
     """
@@ -113,11 +122,12 @@ def export_inventory_csv() -> str:
 def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
     """Reads a CSV file and updates inventory. Matches by ID first, then Name."""
     conn = get_connection()
-    cursor = conn.cursor()
-    updated_count = 0
-    errors = []
-    
     try:
+        # Puts the DB in 'write mode' immediately, preventing others from jumping the line
+        conn.execute("BEGIN IMMEDIATE") 
+        cursor = conn.cursor()
+        updated_count = 0
+        errors = []
         df = pd.read_csv(file_obj)
         # Normalize headers to lowercase to be user-friendly
         df.columns = [c.lower().strip() for c in df.columns]
