@@ -54,6 +54,20 @@ def get_inventory() -> pd.DataFrame:
         logger.error(f"get_inventory: Error fetching inventory: {e}")
         return pd.DataFrame()
 
+def get_goal_product_id(goal_id: int) -> Optional[int]:
+    """Fetches the product_id associated with a specific goal."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
+        res = cursor.fetchone()
+        return res[0] if res else None
+    except Exception as e:
+        logger.error(f"get_goal_product_id: {e}")
+        return None
+    finally:
+        conn.close()
+
 def log_production(goal_id: int, substitutions: list = None, ignore_recipe: bool = False) -> bool:
     """
     Increments production count and deducts inventory (BOM).
@@ -300,7 +314,6 @@ def _get_local_image_bytes(product_name: str) -> Optional[bytes]:
 def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
     """Imports products/recipes. Format: Product, Price, Type, Ingredient, Qty."""
     conn = get_connection()
-    cursor = conn.cursor()
     created_count = 0
     errors = []
     
@@ -308,6 +321,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
     batch_groups = {}
 
     try:
+        cursor = conn.cursor()
         df = pd.read_csv(file_obj)
         df.columns = [c.lower().strip() for c in df.columns]
         
@@ -504,8 +518,8 @@ def update_product_recipe(
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         # 1. Find the current product to get its current data
         cursor.execute("SELECT selling_price, image_data, display_name, stock_on_hand, note, variant_group_id, variant_type, category FROM products WHERE product_id = ?", (current_product_id,))
         res = cursor.fetchone()
@@ -583,8 +597,8 @@ def update_product_recipe(
 def delete_product(product_id: int) -> bool:
     """Soft deletes a product by marking it inactive."""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (product_id,))
         logger.info(f"delete_product: Soft deleted product_id {product_id}")
         conn.commit()
@@ -906,8 +920,8 @@ def create_new_product(
 ) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         # Generate a group ID if one wasn't provided (treats this as a standalone product/group of 1)
         if not variant_group_id:
             variant_group_id = str(uuid.uuid4())
@@ -1095,8 +1109,8 @@ def get_product_details(product_name: str) -> Optional[dict]:
 def update_inventory_cost(item_id: int, new_cost: float) -> bool:
     """Updates the unit cost for a specific inventory item."""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute("UPDATE inventory SET unit_cost = ? WHERE item_id = ?", (new_cost, item_id))
         logger.info(f"update_inventory_cost: Updated cost for item_id {item_id} to {new_cost}")
         conn.commit()

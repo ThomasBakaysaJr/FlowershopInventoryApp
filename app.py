@@ -11,12 +11,24 @@ from src.components.admin import admin_inventory_view, production_viewer, foreca
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
+#
+import logging
+from logging.handlers import RotatingFileHandler  # <--- NEW IMPORT
+
+# ... (keep your other imports) ...
+
 # --- Logging Configuration ---
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
+# Create a handler that rotates files
+# maxBytes=5MB: The file will grow to 5MB
+# backupCount=3: It will keep 3 old copies (app.log.1, app.log.2, app.log.3)
+# Total disk usage: ~20MB max.
+log_handler = RotatingFileHandler('logs/app.log', maxBytes=5*1024*1024, backupCount=3)
+
 logging.basicConfig(
-    filename='logs/app.log',
+    handlers=[log_handler],  # Use the new handler
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
