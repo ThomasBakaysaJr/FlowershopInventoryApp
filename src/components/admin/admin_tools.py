@@ -116,7 +116,9 @@ def render_bulk_operations(raw_inventory_df):
     with col_up_prod:
         prod_file = st.file_uploader("Upload Recipes (.csv)", type=["csv"], key="prod_upload")
         if prod_file:
-            if st.button("Process Recipe Import", type="primary", width="stretch"):
+            if prod_file.size > 10 * 1024 * 1024:
+                st.error("File too large. Limit is 10MB.")
+            elif st.button("Process Recipe Import", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_recipe_upload(prod_file)
                 if count > 0:
                     st.success(f"✅ Processed {count} products!")
