@@ -318,6 +318,17 @@ def _get_local_image_bytes(product_name: str) -> Optional[bytes]:
 
 def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
     """Imports products/recipes. Format: Product, Price, Type, Ingredient, Qty."""
+    try:
+        df = pd.read_csv(file_obj)
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        required = ['product', 'qty']
+        if not all(col in df.columns for col in required):
+            return 0, [f"CSV missing required columns: {required}"]
+    except Exception as e:
+        logger.error(f"process_bulk_recipe_upload: CSV Error: {e}")
+        return 0, [str(e)]
+
     conn = get_connection()
     created_count = 0
     errors = []
@@ -327,13 +338,6 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
 
     try:
         cursor = conn.cursor()
-        df = pd.read_csv(file_obj)
-        df.columns = [c.lower().strip() for c in df.columns]
-        
-        required = ['product', 'qty']
-        if not all(col in df.columns for col in required):
-            return 0, [f"CSV missing required columns: {required}"]
-            
         # Group by Product Name so we process the whole recipe at once
         grouped = df.groupby('product')
         

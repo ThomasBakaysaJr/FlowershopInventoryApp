@@ -98,7 +98,7 @@ def render_forecaster():
             # Assuming recipe qty is raw units (e.g. stems) and inventory is packs.
             # Actually, standard practice: Inventory Count * Bundle Count = Total Stems Available.
             
-            total_available_stems = stock * bundle_size
+            total_available_stems = stock
             net_need = needed_qty - total_available_stems
             
             deficit_stems = max(0, net_need)
