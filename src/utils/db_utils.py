@@ -136,6 +136,17 @@ def export_inventory_csv() -> str:
 
 def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
     """Reads a CSV file and updates inventory. Matches by ID first, then Name."""
+    try:
+        df = pd.read_csv(file_obj)
+        # Normalize headers to lowercase to be user-friendly
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        if 'name' not in df.columns or 'count_on_hand' not in df.columns:
+            return 0, ["CSV missing required columns: 'name', 'count_on_hand'"]
+    except Exception as e:
+        logger.error(f"process_bulk_inventory_upload: CSV Error: {e}")
+        return 0, [str(e)]
+
     conn = get_connection()
     try:
         # Puts the DB in 'write mode' immediately, preventing others from jumping the line
@@ -143,12 +154,6 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
         cursor = conn.cursor()
         updated_count = 0
         errors = []
-        df = pd.read_csv(file_obj)
-        # Normalize headers to lowercase to be user-friendly
-        df.columns = [c.lower().strip() for c in df.columns]
-        
-        if 'name' not in df.columns or 'count_on_hand' not in df.columns:
-            return 0, ["CSV missing required columns: 'name', 'count_on_hand'"]
             
         for index, row in df.iterrows():
             try:
@@ -1171,7 +1176,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
         
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.image_data, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?
@@ -1226,7 +1231,6 @@ def get_production_requirements(start_date, end_date) -> pd.DataFrame:
         SELECT 
             p.product_id, 
             p.display_name as Product, 
-            p.image_data, 
             p.active, 
             MAX(p.stock_on_hand) as stock_on_hand,
             MAX(p.note) as note,

@@ -81,7 +81,9 @@ def render_bulk_operations(raw_inventory_df):
     with col_up_inv:
         inv_file = st.file_uploader("Upload Inventory (.csv)", type=["csv"], key="inv_upload")
         if inv_file:
-            if st.button("Process Inventory Update", type="primary", width="stretch"):
+            if inv_file.size > 10 * 1024 * 1024:
+                st.error("File too large. Limit is 10MB.")
+            elif st.button("Process Inventory Update", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_inventory_upload(inv_file)
                 if count > 0:
                     st.success(f"✅ Successfully updated {count} items!")
