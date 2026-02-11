@@ -1391,14 +1391,23 @@ def get_recipe_requirements(product_id: int) -> dict:
         
         rows = cursor.fetchall()
         result = {'has_generics': False, 'specific_items': [], 'generic_items': []}
+        generic_map = {}
         
         for item_id, qty, req_type, req_val, note in rows:
             if req_type == 'Category':
                 result['has_generics'] = True
-                result['generic_items'].append({'category': req_val, 'qty': qty, 'note': note})
+                cat = req_val
+                if cat in generic_map:
+                    generic_map[cat]['qty'] += qty
+                    if note:
+                        prev = generic_map[cat]['note']
+                        generic_map[cat]['note'] = f"{prev}; {note}" if prev else note
+                else:
+                    generic_map[cat] = {'category': cat, 'qty': qty, 'note': note}
             else:
                 result['specific_items'].append((item_id, qty))
-                
+        
+        result['generic_items'] = list(generic_map.values())
         return result
     except sqlite3.Error as e:
         logger.error(f"get_recipe_requirements: {e}")
