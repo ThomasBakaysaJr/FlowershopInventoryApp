@@ -303,6 +303,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
     created_count = 0
     errors = []
     
+    # Track BaseName -> GroupID for this batch to link variants (e.g. Std/Dlx)
+    batch_groups = {}
+
     try:
         df = pd.read_csv(file_obj)
         df.columns = [c.lower().strip() for c in df.columns]
@@ -371,16 +374,15 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                         res = cursor.fetchone()
                         if res: item_id = res[0]
                     
-                    # Strategy 3: Generic Detection (e.g. "Any Rose")
-                    if item_id is None and ing_name.lower().startswith("any "):
-                        req_type = 'Category'
-                        req_val = ing_name[4:].strip()
-                    
+                    # Strategy 3: Generic Detection
+                    # FIXED: Logic is now looser. If ID not found, treat as Category.
                     if item_id is None:
-                        # Only raise error if it's not a valid Generic
-                        if req_type == 'Specific':
-                            id_ref = row.get('item_id', 'N/A')
-                            raise ValueError(f"Ingredient not found in Inventory (Name: '{ing_name}', ID: {id_ref}).")
+                        req_type = 'Category'
+                        # Use Name (remove "Any " prefix if user added it manually)
+                        if ing_name.lower().startswith("any "):
+                             req_val = ing_name[4:].strip()
+                        else:
+                             req_val = ing_name.strip()
                     
                     recipe_items.append((item_id, qty, req_type, req_val, note))
                 
@@ -400,7 +402,7 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 
                 if prod_exists:
                     # UPDATE (Immutable Pattern)
-                    # 1. Fetch existing data to preserve (Image, Stock, Variants, Category)
+                    # 1. Fetch existing data to preserve
                     cursor.execute("SELECT image_data, stock_on_hand, variant_group_id, variant_type, category FROM products WHERE product_id = ?", (target_p_id,))
                     existing_data = cursor.fetchone()
                     old_img = existing_data[0] if existing_data else None
@@ -409,14 +411,14 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     old_variant_type = existing_data[3] if existing_data and existing_data[3] else 'STD'
                     old_category = existing_data[4] if existing_data else 'Standard'
                     
-                    # Determine final image: New local image takes precedence, otherwise keep old
+                    # Determine final image/cat
                     final_img = new_image_bytes if new_image_bytes else old_img
                     final_cat = cat if cat is not None else old_category
                     
                     # 2. Archive Old
                     cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_p_id,))
                     
-                    # 3. Create New (New Price/Cat, Old Image/Stock, Preserved Variant Info)
+                    # 3. Create New
                     cursor.execute("INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)", 
                                    (product_name, price, final_img, old_stock, final_cat, prod_note, old_group_id, old_variant_type))
                     new_id = cursor.lastrowid
@@ -427,17 +429,38 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                 else:
                     # INSERT (New Product)
                     final_cat = cat if cat is not None else 'Standard'
-                    new_group_id = str(uuid.uuid4())
 
-                    # --- Variant-Aware Logic ---
-                    # Parse the product name for a variant suffix, defaulting to STD
+                    # --- FIXED VARIANT LOGIC ---
                     words = product_name.split()
                     last_word = words[-1].lower() if words else ""
                     variant_type = "STD"
                     suffix_map = {"standard": "STD", "deluxe": "DLX", "premium": "PRM"}
+                    
                     if last_word in suffix_map:
                         variant_type = suffix_map[last_word]
+                        # Base Name = "Rose Dozen Red" (Strip "Standard")
+                        base_name = " ".join(words[:-1]).strip()
+                    else:
+                        base_name = product_name.strip()
                     
+                    # Grouping Strategy:
+                    # 1. Check Batch: Did we just make a sibling?
+                    if base_name in batch_groups:
+                        new_group_id = batch_groups[base_name]
+                    else:
+                        # 2. Check Database: Does a sibling exist from a previous upload?
+                        # Find any active product starting with this base name
+                        cursor.execute("SELECT variant_group_id FROM products WHERE display_name LIKE ? AND active = 1 LIMIT 1", (base_name + "%",))
+                        existing_grp = cursor.fetchone()
+                        if existing_grp and existing_grp[0]:
+                            new_group_id = existing_grp[0]
+                        else:
+                            # 3. New Family
+                            new_group_id = str(uuid.uuid4())
+                        
+                        # Register in batch
+                        batch_groups[base_name] = new_group_id
+
                     if target_p_id:
                         cursor.execute("INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)", 
                                        (target_p_id, product_name, price, new_image_bytes, final_cat, prod_note, new_group_id, variant_type))
