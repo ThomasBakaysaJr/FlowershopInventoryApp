@@ -1147,6 +1147,7 @@ def add_inventory_item(name: str, category: str, sub_category: str, count: int, 
     finally:
         conn.close()
 
+@st.cache_data(ttl=300)
 def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
     """Fetches production goals falling within a specific date range."""
     conn = get_connection()
