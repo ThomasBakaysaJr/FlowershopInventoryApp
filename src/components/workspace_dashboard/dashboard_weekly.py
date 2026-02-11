@@ -7,14 +7,9 @@ from src.components import recipe_display, date_selector
 def handle_log_production(goal_id, product_name):
     # 1. Check Requirements
     # We need to get the product_id from the goal first
-    conn = db_utils.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
-    res = cursor.fetchone()
-    conn.close()
+    p_id = db_utils.get_goal_product_id(goal_id)
     
-    if not res: return
-    p_id = res[0]
+    if not p_id: return
     
     reqs = db_utils.get_recipe_requirements(p_id)
     
