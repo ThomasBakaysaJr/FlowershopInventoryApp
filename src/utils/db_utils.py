@@ -1170,7 +1170,6 @@ def add_inventory_item(name: str, category: str, sub_category: str, count: int, 
     finally:
         conn.close()
 
-@st.cache_data(ttl=300)
 def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
     """Fetches production goals falling within a specific date range."""
     conn = get_connection()
@@ -1387,7 +1386,7 @@ def delete_production_goal(goal_id: int) -> bool:
                 # A. 'PACK' logs (Stock -> Goal) should be DELETED. Reversing the goal means putting them back in stock, effectively cancelling the move.
                 cursor.execute("DELETE FROM production_logs WHERE goal_id = ? AND action_type = 'PACK'", (goal_id,))
                 # B. 'MAKE' logs (Inventory -> Goal) should be DETACHED. They become valid "Stock Production" history.
-                cursor.execute("UPDATE production_logs SET goal_id = NULL WHERE goal_id = ? AND action_type != 'PACK'", (goal_id,))
+                cursor.execute("UPDATE production_logs SET goal_id = NULL, action_type = 'STOCK' WHERE goal_id = ? AND action_type != 'PACK'", (goal_id,))
         
         # 4. Delete the goal itself
         cursor.execute("DELETE FROM production_goals WHERE goal_id = ?", (goal_id,))
