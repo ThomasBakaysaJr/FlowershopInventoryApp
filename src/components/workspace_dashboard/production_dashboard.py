@@ -2,201 +2,25 @@ import streamlit as st
 import pandas as pd
 import io
 from src.utils import db_utils
-from src.components import recipe_display, date_selector
+from src.components import date_selector
+from src.components.workspace_dashboard.shared_modals import generic_selection_modal, adjustment_modal
 
 def handle_make_stock(product_id, product_name):
     """Callback to increase stock."""
-    # 1. Check Requirements
     reqs = db_utils.get_recipe_requirements(product_id)
-    
+
     if not reqs['has_generics']:
-        # Fast Path: Just Log it
         if db_utils.produce_stock(product_id):
             st.session_state['prod_dash_toast'] = (f"Made 1 {product_name}", "📦")
     else:
-        # Slow Path: Open Modal for Selection
-        trigger_generic_stock_modal(product_id, product_name, reqs['generic_items'])
-
-@st.dialog("🌸 Select Flowers Used")
-def trigger_generic_stock_modal(product_id, product_name, generic_reqs):
-    st.write(f"Making **{product_name}**. Please specify generic items used.")
-    
-    # Pre-calculate validation state to render button immediately
-    substitutions_to_make = []
-    valid_form = True
-    validation_data = []
-    
-    for req in generic_reqs:
-        category = req['category']
-        needed = req['qty']
-        
-        # Fetch inventory once
-        inventory_df = db_utils.get_items_by_category(category)
-        
-        current_allocated = 0
-        if not inventory_df.empty:
-            for _, item in inventory_df.iterrows():
-                key = f"stock_alloc_{product_id}_{item['item_id']}"
-                val = st.session_state.get(key, 0)
-                if val > 0:
-                    substitutions_to_make.append((item['item_id'], val))
-                    current_allocated += val
-        
-        validation_data.append({
-            'req': req,
-            'inventory_df': inventory_df,
-            'allocated': current_allocated
-        })
-
-    # Render Button at the top
-    if st.button("Confirm Production", type="primary", disabled=not valid_form, width='stretch', key=f"confirm_gen_{product_id}"):
-        if db_utils.produce_stock(product_id, substitutions=substitutions_to_make):
-            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} with details!", "📦")
-            st.rerun()
-            
-    st.divider()
-    
-    # Search Bar
-    search_term = st.text_input("Search Items", placeholder="Type to filter...", label_visibility="collapsed", key=f"search_gen_{product_id}")
-
-    # Render Inputs
-    for data in validation_data:
-        req = data['req']
-        inventory_df = data['inventory_df']
-        allocated_qty = data['allocated']
-        
-        category = req['category']
-        needed = req['qty']
-        note = req.get('note')
-        
-        st.divider()
-        label = f"**Required:** {needed} x {category}"
-        if note:
-            label += f" ({note})"
-        st.markdown(label)
-        
-        if inventory_df.empty:
-            st.warning(f"No items found for category '{category}' in inventory.")
-            continue
-            
-        # Filter by search
-        if search_term:
-            def is_allocated(row):
-                key = f"stock_alloc_{product_id}_{row['item_id']}"
-                return st.session_state.get(key, 0) > 0
-            
-            mask = (inventory_df['name'].str.contains(search_term, case=False, na=False)) | (inventory_df.apply(is_allocated, axis=1))
-            inventory_df = inventory_df[mask]
-            
-            if inventory_df.empty:
-                st.caption(f"No items match '{search_term}' in {category}.")
-                continue
-
-        # Dynamic inputs
-        for _, item in inventory_df.iterrows():
-            cols = st.columns([3, 1])
-            with cols[0]:
-                st.write(f"{item['name']} (Stock: {item['count_on_hand']})")
-            with cols[1]:
-                st.number_input(
-                    "Use", 
-                    min_value=0, 
-                    step=1,
-                    key=f"stock_alloc_{product_id}_{item['item_id']}",
-                    label_visibility="collapsed"
-                )
-        
-        if allocated_qty != needed:
-            st.warning(f"Selected {allocated_qty} / {needed} {category}s.")
-        else:
-            st.success(f"✅ {category} requirements met.")
-
-@st.dialog("📝 Adjust Recipe & Make")
-def trigger_adjustment_modal(product_id, product_name):
-    st.write(f"Adjusting ingredients for **{product_name}**.")
-    
-    # 1. Fetch Standard Recipe
-    details = db_utils.get_product_details(product_name)
-    if not details:
-        st.error("Could not load recipe.")
-        return
-
-    # Initialize state for this modal if not present
-    if f"adj_items_{product_id}" not in st.session_state:
-        # Convert recipe to list of dicts for editing
-        # We flatten generics into this list too, so the user sees everything
-        initial_items = []
-        for item in details['recipe']:
-            # If it's a generic requirement (no item_id), we can't pre-fill an ID, 
-            # but we can show it as a placeholder or just skip it and let them add.
-            # Better: Skip generics here, they must be added manually if specific items were used.
-            if item['item_id']:
-                initial_items.append({'item_id': item['item_id'], 'name': item['name'], 'qty': item['qty'], 'note': item.get('note')})
-        st.session_state[f"adj_items_{product_id}"] = initial_items
-
-    # 2. Render Editable List
-    items = st.session_state[f"adj_items_{product_id}"]
-    
-    # Use Data Editor for quick adjustments
-    edited_df = st.data_editor(
-        pd.DataFrame(items),
-        column_config={
-            "name": st.column_config.TextColumn("Ingredient", disabled=True),
-            "note": st.column_config.TextColumn("Note"),
-            "qty": st.column_config.NumberColumn("Qty Used", min_value=0, step=1),
-            "item_id": None # Hide ID
-        },
-        hide_index=True,
-        width="stretch",
-        key=f"editor_{product_id}"
-    )
-    
-    # 3. Add Extra Item Section
-    st.divider()
-    st.caption("Add Substitution / Extra Item")
-    inventory_df = db_utils.get_inventory()
-    if not inventory_df.empty:
-        # Create a lookup for names
-        inv_options = inventory_df['name'].tolist()
-        inv_map = dict(zip(inventory_df['name'], inventory_df['item_id']))
-        
-        c1, c2, c3 = st.columns([2, 1, 1])
-        with c1:
-            new_item_name = st.selectbox("Item", options=inv_options, key=f"add_sel_{product_id}", label_visibility="collapsed", index=None, placeholder="Select item...")
-        with c2:
-            new_qty = st.number_input("Qty", min_value=1, value=1, key=f"add_qty_{product_id}", label_visibility="collapsed")
-        with c3:
-            if st.button("Add", key=f"add_btn_{product_id}", width="stretch"):
-                if new_item_name:
-                    # Add to session state list
-                    new_id = inv_map[new_item_name]
-                    # Check if exists
-                    existing = next((x for x in st.session_state[f"adj_items_{product_id}"] if x['item_id'] == new_id), None)
-                    if existing:
-                        existing['qty'] += new_qty
-                    else:
-                        st.session_state[f"adj_items_{product_id}"].append({'item_id': new_id, 'name': new_item_name, 'qty': new_qty, 'note': None})
-                    st.rerun()
-
-    st.divider()
-    if st.button("Confirm & Make", type="primary", width='stretch'):
-        # Convert edited DF back to list
-        final_items = []
-        # We iterate the edited_df to get the values from the widget
-        for _, row in edited_df.iterrows():
-            if row['qty'] > 0:
-                final_items.append((row['item_id'], row['qty']))
-        
-        # We also need to include any newly added items that might not be in the editor yet 
-        # (Actually, st.data_editor updates session state? No, it returns a new DF)
-        # The "Add" button updates the source list, which re-renders the editor.
-        # So edited_df IS the source of truth for the *next* render, but we need to capture it here.
-        
-        if db_utils.produce_stock(product_id, substitutions=final_items, ignore_recipe=True):
-            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name} (Custom)", "🛠️")
-            # Cleanup
-            del st.session_state[f"adj_items_{product_id}"]
-            st.rerun()
+        generic_selection_modal(
+            key_prefix=f"stock_{product_id}",
+            display_name=product_name,
+            generic_reqs=reqs['generic_items'],
+            on_confirm=lambda subs: db_utils.produce_stock(product_id, substitutions=subs),
+            toast_key='prod_dash_toast',
+            toast_success_msg=f"Made 1 {product_name} with details!",
+        )
 
 def handle_undo_stock(product_id, product_name):
     """Callback to decrease stock."""
@@ -328,7 +152,14 @@ def render_card(row, recipes_df):
                 )
             with b2:
                 if st.button("📝", key=f"adj_stock_{row['product_id']}", help="Make with Adjustments", width="stretch"):
-                    trigger_adjustment_modal(int(row['product_id']), row['Product'])
+                    adjustment_modal(
+                        key_prefix=f"stock_{int(row['product_id'])}",
+                        display_name=row['Product'],
+                        product_name=row['Product'],
+                        on_confirm=lambda subs: db_utils.produce_stock(int(row['product_id']), substitutions=subs, ignore_recipe=True),
+                        toast_key='prod_dash_toast',
+                        toast_success_msg=f"Made 1 {row['Product']} (Custom)",
+                    )
             
             # Undo Button (Removes from Stock)
             st.button(
@@ -341,7 +172,7 @@ def render_card(row, recipes_df):
             )
         
         with st.expander("🌿 Recipe & Image"):
-            if pd.notna(row['image_data']):
+            if 'image_data' in row and pd.notna(row['image_data']):
                 st.image(io.BytesIO(row['image_data']), width=200)
             
             # Filter for recipe
