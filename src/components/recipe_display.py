@@ -73,8 +73,10 @@ def render_recipe_display(allow_edit=False):
             # Variant Badge
             v_type = prod.get('variant_type', 'STD')
             badge = " :green[[STD]]"
-            if v_type == 'DLX': badge = " :blue[[DLX]]"
-            elif v_type == 'PRM': badge = " :red[[PRM]]"
+            if v_type == 'DLX':
+                badge = " :blue[[DLX]]"
+            elif v_type == 'PRM':
+                badge = " :red[[PRM]]"
             
             display_name = f"{prod['Product']}{badge} - ${prod['Price']:.2f}"
             

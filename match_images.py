@@ -29,9 +29,12 @@ def normalize_text(text):
 
 def get_variant_from_name(name):
     name = name.lower()
-    if 'premium' in name: return 'PRM'
-    if 'deluxe' in name: return 'DLX'
-    if 'standard' in name: return 'STD'
+    if 'premium' in name:
+        return 'PRM'
+    if 'deluxe' in name:
+        return 'DLX'
+    if 'standard' in name:
+        return 'STD'
     return 'GENERIC'
 
 def get_base_name(text):

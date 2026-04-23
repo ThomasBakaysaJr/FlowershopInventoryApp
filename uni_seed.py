@@ -146,7 +146,7 @@ def seed_from_images():
                 count += 1
             else:
                 print(f"❌ Failed to create '{p_name}' (DB Error)")
-                print(f"   Check logs/app.log for details.")
+                print("   Check logs/app.log for details.")
                 errors += 1
 
     print("-" * 40)

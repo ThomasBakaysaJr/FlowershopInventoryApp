@@ -1,5 +1,5 @@
 import os
-from PIL import Image, ImageOps
+from PIL import Image
 
 # =================CONFIGURATION=================
 # CHANGE THIS to the folder where your big images are

@@ -152,7 +152,8 @@ def render_forecaster():
         inventory_df = db_utils.get_inventory()
         
         def get_cat_stock(cat):
-            if inventory_df.empty: return 0
+            if inventory_df.empty:
+                return 0
             return inventory_df[inventory_df['sub_category'] == cat]['count_on_hand'].sum()
             
         generic_df['Current Category Stock'] = generic_df['Category'].apply(get_cat_stock)
