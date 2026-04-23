@@ -30,7 +30,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
 
         query = """
-        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, p.stock_on_hand, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
+        SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, p.image_data, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
         FROM production_goals pg
         JOIN products p ON pg.product_id = p.product_id
         WHERE pg.due_date BETWEEN ? AND ?
@@ -93,30 +93,11 @@ def add_production_goal(product_id: int, due_date: str, qty_ordered: int, time_s
 
 
 def delete_production_goal(goal_id: int) -> bool:
-    """Removes a goal. Items already made are returned to general stock."""
+    """Deletes a goal and its production logs. Already-made items are physical excess — no ledger move."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
-
-        cursor.execute("SELECT product_id, qty_fulfilled FROM production_goals WHERE goal_id = ?", (goal_id,))
-        res = cursor.fetchone()
-
-        if res:
-            p_id, made_count = res
-
-            if made_count > 0:
-                logger.info(f"delete_production_goal: Returning {made_count} items to stock for product {p_id}")
-                cursor.execute(
-                    "UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?",
-                    (made_count, p_id),
-                )
-                # PACK logs (Stock -> Goal) are deleted; MAKE logs are detached as STOCK production
-                cursor.execute("DELETE FROM production_logs WHERE goal_id = ? AND action_type = 'PACK'", (goal_id,))
-                cursor.execute(
-                    "UPDATE production_logs SET goal_id = NULL, action_type = 'STOCK' WHERE goal_id = ? AND action_type != 'PACK'",
-                    (goal_id,),
-                )
-
+        cursor.execute("DELETE FROM production_logs WHERE goal_id = ?", (goal_id,))
         cursor.execute("DELETE FROM production_goals WHERE goal_id = ?", (goal_id,))
         conn.commit()
         return True
@@ -149,274 +130,36 @@ def update_goal_quantity(goal_id: int, new_qty: int) -> dict:
         conn.close()
 
 
-def release_overage_to_stock(goal_id: int, qty_to_release: int) -> bool:
-    """Moves items from goal progress to general stock (cooler)."""
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
+def log_production(
+    goal_id: int,
+    qty: int = 1,
+    substitutions: list = None,
+    ignore_recipe: bool = False,
+) -> int:
+    """Log production of `qty` units toward a goal.
 
-        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
-        p_id = cursor.fetchone()[0]
+    - Deducts Specific-recipe-ingredient items from inventory, *only* for items
+      with `track_inventory = 1`. Untracked items (e.g. cut flowers) are recipe
+      references for pricing only; the app does not maintain their counts.
+    - Writes one `production_logs` row per unit, preserving the unit-granular
+      undo pattern. Rows carry `action_type='MAKE'` for continuity with
+      historical logs.
+    - Auto-archives completed One-Off products once every goal for that
+      product is fulfilled.
 
-        cursor.execute(
-            "UPDATE production_goals SET qty_fulfilled = qty_fulfilled - ? WHERE goal_id = ?",
-            (qty_to_release, goal_id),
-        )
-        cursor.execute(
-            "UPDATE products SET stock_on_hand = stock_on_hand + ? WHERE product_id = ?",
-            (qty_to_release, p_id),
-        )
-
-        cursor.execute(
-            "SELECT log_id, action_type FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT ?",
-            (goal_id, qty_to_release),
-        )
-        logs = cursor.fetchall()
-
-        pack_ids = [str(row[0]) for row in logs if row[1] == 'PACK']
-        make_ids = [str(row[0]) for row in logs if row[1] != 'PACK']
-
-        if pack_ids:
-            cursor.execute(f"DELETE FROM production_logs WHERE log_id IN ({','.join(pack_ids)})")
-
-        if make_ids:
-            cursor.execute(
-                f"UPDATE production_logs SET goal_id = NULL, action_type = 'STOCK' WHERE log_id IN ({','.join(make_ids)})"
-            )
-
-        conn.commit()
-        return True
-    except sqlite3.Error as e:
-        logger.error(f"release_overage_to_stock: {e}")
-        return False
-    finally:
-        conn.close()
-
-
-def log_production(goal_id: int, substitutions: list = None, ignore_recipe: bool = False) -> bool:
+    Returns the number of units actually logged.
     """
-    Increments qty_fulfilled and deducts inventory (BOM) for a goal.
-    substitutions: list of (item_id, qty) for generic recipe items resolved by the user.
-    ignore_recipe: if True, skips standard specific-item deductions (only substitutions are used).
-    """
+    qty = max(0, int(qty))
+    if qty == 0:
+        return 0
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT product_id, qty_fulfilled, qty_ordered FROM production_goals WHERE goal_id = ?",
-            (goal_id,),
-        )
-        res = cursor.fetchone()
-
-        if not res:
-            logger.error(f"log_production: Goal ID {goal_id} not found.")
-            return False
-
-        p_id, qty_fulfilled, qty_ordered = res
-        logger.debug(f"log_production: goal_id={goal_id}, product_id={p_id}")
-
-        cursor.execute("UPDATE production_goals SET qty_fulfilled = qty_fulfilled + 1 WHERE goal_id = ?", (goal_id,))
-        cursor.execute(
-            "INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (?, ?, 'MAKE')",
-            (goal_id, p_id),
-        )
-
-        if not ignore_recipe:
-            cursor.execute(
-                "SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'",
-                (p_id,),
-            )
-            for i_id, qty in cursor.fetchall():
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
-                    (qty, i_id),
-                )
-
-        if substitutions:
-            for sub_item_id, sub_qty in substitutions:
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
-                    (sub_qty, sub_item_id),
-                )
-
-        conn.commit()
-        return True
-    except sqlite3.Error as e:
-        logger.error(f"log_production: Database error: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
-
-
-def produce_stock(product_id: int, substitutions: list = None, ignore_recipe: bool = False) -> bool:
-    """Increments stock_on_hand and deducts inventory (BOM). Logs with goal_id=NULL."""
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?",
-            (product_id,),
-        )
-
-        if cursor.rowcount == 0:
-            logger.warning(f"produce_stock: No product found with ID {product_id}")
-            return False
-
-        cursor.execute(
-            "INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (NULL, ?, 'STOCK')",
-            (product_id,),
-        )
-
-        if not ignore_recipe:
-            cursor.execute(
-                "SELECT item_id, qty_needed FROM recipes WHERE product_id = ? AND requirement_type = 'Specific'",
-                (product_id,),
-            )
-            for i_id, qty in cursor.fetchall():
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
-                    (qty, i_id),
-                )
-
-        if substitutions:
-            for sub_item_id, sub_qty in substitutions:
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
-                    (sub_qty, sub_item_id),
-                )
-
-        conn.commit()
-        return True
-    except sqlite3.Error as e:
-        logger.error(f"produce_stock: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
-
-
-def undo_production(goal_id: int) -> bool:
-    """Decrements qty_fulfilled and restores inventory (BOM)."""
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
-        res = cursor.fetchone()
-        if not res:
-            return False
-        goal_p_id = res[0]
-
-        cursor.execute(
-            "SELECT log_id, action_type, product_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1",
-            (goal_id,),
-        )
-        log_res = cursor.fetchone()
-
-        if log_res:
-            l_id, action_type, log_p_id = log_res
-            logger.info(f"undo_production: Reverting goal_id {goal_id}, log_id {l_id}")
-
-            if action_type == 'PACK':
-                cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
-                cursor.execute(
-                    "UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?",
-                    (goal_id,),
-                )
-                cursor.execute(
-                    "UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?",
-                    (goal_p_id,),
-                )
-                conn.commit()
-                return True
-
-            cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (l_id,))
-            cursor.execute(
-                "UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?",
-                (goal_id,),
-            )
-
-            # Restore using the original product version's recipe (handles archived products correctly)
-            cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (log_p_id,))
-            for i_id, qty in cursor.fetchall():
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?",
-                    (qty, i_id),
-                )
-
-            conn.commit()
-            return True
-        return False
-    except sqlite3.Error as e:
-        logger.error(f"undo_production: Database error: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
-
-
-def undo_stock_production(product_id: int) -> bool:
-    """Decrements stock_on_hand and restores inventory. Reverts last STOCK log."""
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT log_id, action_type FROM production_logs WHERE product_id = ? AND goal_id IS NULL ORDER BY log_id DESC LIMIT 1",
-            (product_id,),
-        )
-        res = cursor.fetchone()
-
-        if not res:
-            return False
-
-        log_id, action_type = res
-
-        # Never undo a PACK action here — those belong to deleted goals
-        if action_type == 'PACK':
-            logger.warning(f"undo_stock_production: Skipped PACK log {log_id}.")
-            return False
-
-        cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
-        cursor.execute(
-            "UPDATE products SET stock_on_hand = stock_on_hand - 1 WHERE product_id = ?",
-            (product_id,),
-        )
-
-        if cursor.rowcount == 0:
-            logger.warning(f"undo_stock_production: No product found with ID {product_id}")
-            return False
-
-        cursor.execute("SELECT item_id, qty_needed FROM recipes WHERE product_id = ?", (product_id,))
-        for i_id, qty in cursor.fetchall():
-            cursor.execute(
-                "UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?",
-                (qty, i_id),
-            )
-
-        conn.commit()
-        return True
-    except sqlite3.Error as e:
-        logger.error(f"undo_stock_production: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
-
-
-def fulfill_goal(goal_id: int, qty: int = 1) -> int:
-    """Decrements stock_on_hand and increments qty_fulfilled (Cooler -> Order)."""
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-        qty = int(qty)
 
         cursor.execute(
             """
-            SELECT p.stock_on_hand, p.product_id, p.category, pg.qty_ordered, pg.qty_fulfilled
+            SELECT p.product_id, p.category, pg.qty_ordered, pg.qty_fulfilled
             FROM production_goals pg
             JOIN products p ON pg.product_id = p.product_id
             WHERE pg.goal_id = ?
@@ -424,89 +167,127 @@ def fulfill_goal(goal_id: int, qty: int = 1) -> int:
             (goal_id,),
         )
         res = cursor.fetchone()
-
         if not res:
+            logger.error(f"log_production: Goal ID {goal_id} not found.")
             return 0
-        stock, p_id, category, ordered, fulfilled = res
+        p_id, category, ordered, fulfilled = res
 
-        needed = max(0, ordered - fulfilled)
-        actual_qty = min(qty, stock, needed)
-
-        if actual_qty <= 0:
-            logger.warning(f"fulfill_goal: Cannot pack (Requested: {qty}, Stock: {stock}, Needed: {needed})")
-            return 0
-
-        cursor.execute(
-            "UPDATE products SET stock_on_hand = stock_on_hand - ? WHERE product_id = ?",
-            (actual_qty, p_id),
-        )
+        # Over-production is allowed — physical excess in the shop, not a ledger phantom.
         cursor.execute(
             "UPDATE production_goals SET qty_fulfilled = qty_fulfilled + ? WHERE goal_id = ?",
-            (actual_qty, goal_id),
+            (qty, goal_id),
         )
 
-        logs = [(goal_id, p_id, 'PACK') for _ in range(actual_qty)]
+        log_rows = [(goal_id, p_id, 'MAKE') for _ in range(qty)]
         cursor.executemany(
             "INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (?, ?, ?)",
-            logs,
+            log_rows,
         )
 
-        if category == 'One-Off':
-            new_stock = stock - actual_qty
+        if not ignore_recipe:
+            # Only tracked items get deducted; untracked (track_inventory=0) are skipped.
             cursor.execute(
-                "SELECT COUNT(*) FROM production_goals WHERE product_id = ? AND qty_fulfilled < qty_ordered",
+                """
+                SELECT r.item_id, r.qty_needed
+                FROM recipes r
+                JOIN inventory i ON r.item_id = i.item_id
+                WHERE r.product_id = ? AND r.requirement_type = 'Specific' AND i.track_inventory = 1
+                """,
                 (p_id,),
             )
-            pending_goals = cursor.fetchone()[0]
-            if new_stock <= 0 and pending_goals == 0:
-                logger.info(f"fulfill_goal: Auto-archiving completed One-Off product {p_id}")
+            for i_id, per_unit in cursor.fetchall():
+                cursor.execute(
+                    "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
+                    (per_unit * qty, i_id),
+                )
+
+        if substitutions:
+            for sub_item_id, sub_qty in substitutions:
+                cursor.execute("SELECT track_inventory FROM inventory WHERE item_id = ?", (sub_item_id,))
+                row = cursor.fetchone()
+                if row and row[0] == 1:
+                    cursor.execute(
+                        "UPDATE inventory SET count_on_hand = count_on_hand - ? WHERE item_id = ?",
+                        (sub_qty * qty, sub_item_id),
+                    )
+
+        # One-Off auto-archive: if this log completes the last outstanding goal for the product.
+        if category == 'One-Off' and (fulfilled + qty) >= ordered:
+            cursor.execute(
+                "SELECT COUNT(*) FROM production_goals "
+                "WHERE product_id = ? AND qty_fulfilled < qty_ordered AND goal_id != ?",
+                (p_id, goal_id),
+            )
+            if cursor.fetchone()[0] == 0:
+                logger.info(f"log_production: Auto-archiving completed One-Off product {p_id}")
                 cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (p_id,))
 
         conn.commit()
-        return actual_qty
+        return qty
     except sqlite3.Error as e:
-        logger.error(f"fulfill_goal: {e}")
+        logger.error(f"log_production: Database error: {e}")
         conn.rollback()
         return 0
     finally:
         conn.close()
 
 
-def undo_fulfillment(goal_id: int) -> bool:
-    """Reverts a fulfillment: increments stock_on_hand, decrements qty_fulfilled."""
+def undo_production(goal_id: int) -> bool:
+    """Undo the most recent production event on a goal.
+
+    - Deletes one production_logs row (the latest) and decrements `qty_fulfilled` by 1.
+    - Restores tracked Specific-recipe items from the original recipe version
+      (the log's `product_id`, which survives recipe edits thanks to the
+      immutable-product pattern).
+    - For legacy `PACK` logs (pre-collapse, when a cooler existed), we skip
+      the inventory-restore step: PACK never deducted inventory in the first
+      place, so there's nothing to give back.
+    """
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
         cursor.execute("SELECT product_id FROM production_goals WHERE goal_id = ?", (goal_id,))
-        res = cursor.fetchone()
-        if not res:
+        if not cursor.fetchone():
             return False
-        p_id = res[0]
 
         cursor.execute(
-            "SELECT log_id FROM production_logs WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1",
+            "SELECT log_id, action_type, product_id FROM production_logs "
+            "WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1",
             (goal_id,),
         )
         log_res = cursor.fetchone()
         if not log_res:
             return False
-        log_id = log_res[0]
+        log_id, action_type, log_p_id = log_res
 
         cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
         cursor.execute(
             "UPDATE production_goals SET qty_fulfilled = qty_fulfilled - 1 WHERE goal_id = ?",
             (goal_id,),
         )
-        cursor.execute(
-            "UPDATE products SET stock_on_hand = stock_on_hand + 1 WHERE product_id = ?",
-            (p_id,),
-        )
+
+        if action_type != 'PACK':
+            # Restore tracked recipe items using the log's original product version.
+            cursor.execute(
+                """
+                SELECT r.item_id, r.qty_needed
+                FROM recipes r
+                JOIN inventory i ON r.item_id = i.item_id
+                WHERE r.product_id = ? AND r.requirement_type = 'Specific' AND i.track_inventory = 1
+                """,
+                (log_p_id,),
+            )
+            for i_id, per_unit in cursor.fetchall():
+                cursor.execute(
+                    "UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?",
+                    (per_unit, i_id),
+                )
 
         conn.commit()
         return True
     except sqlite3.Error as e:
-        logger.error(f"undo_fulfillment: {e}")
+        logger.error(f"undo_production: Database error: {e}")
         conn.rollback()
         return False
     finally:

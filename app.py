@@ -88,16 +88,16 @@ else:
 
     if st.session_state.nav_main == "🛠️ Workspace":
         if "nav_workspace" not in st.session_state:
-            st.session_state.nav_workspace = "📦 Production Dashboard"
+            st.session_state.nav_workspace = "📊 Production Overview"
 
         st.segmented_control(
             "Workspace Navigation",
-            options=["📦 Production Dashboard", "📅 Upcoming Orders", "🖩 Calculator"],
+            options=["📊 Production Overview", "📅 Upcoming Orders", "🖩 Calculator"],
             key="nav_workspace",
             label_visibility="collapsed"
         )
 
-        if st.session_state.nav_workspace == "📦 Production Dashboard":
+        if st.session_state.nav_workspace == "📊 Production Overview":
             production_dashboard.render()
 
         elif st.session_state.nav_workspace == "📅 Upcoming Orders":

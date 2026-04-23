@@ -1,4 +1,3 @@
-import pytest
 import sqlite3
 import os
 import sys
@@ -23,7 +22,7 @@ def test_log_production_increments_goal_and_deducts_inventory(setup_db):
     finally:
         conn.close()
 
-    assert db_utils.log_production(goal_id) is True
+    assert db_utils.log_production(goal_id) == 1
 
     conn = sqlite3.connect(setup_db)
     try:

@@ -1,187 +1,156 @@
 import streamlit as st
 import pandas as pd
+import datetime
 import io
 from src.utils import db_utils
 from src.components import date_selector
-from src.components.workspace_dashboard.shared_modals import generic_selection_modal, adjustment_modal
 
-def handle_make_stock(product_id, product_name):
-    """Callback to increase stock."""
-    reqs = db_utils.get_recipe_requirements(product_id)
 
-    if not reqs['has_generics']:
-        if db_utils.produce_stock(product_id):
-            st.session_state['prod_dash_toast'] = (f"Made 1 {product_name}", "📦")
-    else:
-        generic_selection_modal(
-            key_prefix=f"stock_{product_id}",
-            display_name=product_name,
-            generic_reqs=reqs['generic_items'],
-            on_confirm=lambda subs: db_utils.produce_stock(product_id, substitutions=subs),
-            toast_key='prod_dash_toast',
-            toast_success_msg=f"Made 1 {product_name} with details!",
-        )
-
-def handle_undo_stock(product_id, product_name):
-    """Callback to decrease stock."""
-    if db_utils.undo_stock_production(product_id):
-        st.session_state['prod_dash_toast'] = (f"Undid 1 {product_name}", "↩️")
-    else:
-        st.session_state['prod_dash_toast'] = ("Nothing to undo.", "⚠️")
-
-@st.fragment(run_every=5)
+@st.fragment(run_every=60)  # read-only view → infrequent refresh is fine
 def render():
-    if 'prod_dash_toast' in st.session_state:
-        msg, icon = st.session_state.pop('prod_dash_toast')
-        st.toast(msg, icon=icon)
+    st.subheader("📊 Production Overview")
+    st.caption("Read-only status across today's and upcoming production goals. Use *Upcoming Orders* to actually log production.")
 
-    st.subheader("📦 Cooler Production Dashboard")
-    st.caption("Manage 'Cooler Stock' (Finished Goods). Making items here deducts raw inventory and increases stock on hand.")
-    
-    # --- Date Selection ---
-    start_date, end_date = date_selector.render("prod_dash")
-    
-    if start_date > end_date:
-        return
-
-    # Search Bar & Filter
-    c_search, c_filter, c_clear = st.columns([5, 2, 1], vertical_alignment="bottom")
-    with c_search:
-        search_term = st.text_input("Search", placeholder="Filter by product name...", label_visibility="collapsed", key="prod_dash_search")
-    with c_filter:
-        show_all = st.checkbox("Show All Items", value=False, help="Uncheck to see only items with a deficit.")
-    with c_clear:
-        if st.button("Clear", key="clear_prod_dash_search", help="Clear Search", width="stretch"):
-            st.session_state.prod_dash_search = ""
-            st.rerun()
+    # Compute fixed summary windows regardless of the detailed-view selection below.
+    _render_summary_header()
 
     st.divider()
 
-    # --- Fetch Data ---
-    df = db_utils.get_production_requirements(st.session_state.prod_dash_start, st.session_state.prod_dash_end)
-    recipes_df = db_utils.get_all_recipes()
-    
-    # Apply Search Filter
-    if search_term:
-        df = db_utils.filter_dataframe_by_terms(df, 'Product', search_term)
-    
-    # Apply "Needed Only" Filter (Default)
-    # If searching, we ignore this filter to show what the user is looking for.
-    elif not show_all:
-        df = df[df['stock_on_hand'] < df['required_qty']]
-
-    if df.empty:
-        st.info("No active products or requirements found for this period.")
+    # Detailed view (user-selectable range)
+    start_date, end_date = date_selector.render("prod_dash")
+    if start_date > end_date:
         return
 
-    # --- Sorting Logic ---
-    # Sort by Product Family (Base Name) then Variant (STD -> DLX -> PRM)
-    df['sort_rank'] = df['variant_type'].map({'STD': 0, 'DLX': 1, 'PRM': 2}).fillna(3)
-    df['sort_base'] = df['Product'].str.replace(r'\s+(Standard|Deluxe|Premium)$', '', regex=True)
+    goals_df = db_utils.get_production_goals_range(start_date, end_date)
+    if goals_df.empty:
+        st.info("No production goals in this range.")
+        return
 
-    df = df.sort_values(by=['sort_base', 'sort_rank'], ascending=[True, True])
+    # Sort by date then time slot (AM → PM → Any) then product name
+    goals_df['due_date'] = pd.to_datetime(goals_df['due_date'])
+    goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
+    goals_df = goals_df.sort_values(by=['due_date', 'time_rank', 'Product', 'goal_id'])
 
-    # --- Render Grid ---
-    # 2 columns on desktop
-    for i in range(0, len(df), 2):
+    recipes_df = db_utils.get_all_recipes()
+
+    for date_val in goals_df['due_date'].dt.date.unique():
+        day_df = goals_df[goals_df['due_date'].dt.date == date_val]
+        st.subheader(date_val.strftime('%A, %b %d'))
+        _render_date_goals(day_df, recipes_df)
+
+
+def _render_summary_header():
+    """Shows today / this-week / month-to-date roll-ups in a single glance."""
+    today = datetime.date.today()
+    week_start = today - datetime.timedelta(days=today.weekday())  # Monday
+    week_end = week_start + datetime.timedelta(days=6)
+    month_start = today.replace(day=1)
+
+    today_df = db_utils.get_production_goals_range(today, today)
+    week_df = db_utils.get_production_goals_range(week_start, week_end)
+    month_df = db_utils.get_production_goals_range(month_start, today)
+
+    def progress(df):
+        if df.empty:
+            return 0, 0, 0
+        ordered = int(df['qty_ordered'].sum())
+        fulfilled = int(df['qty_fulfilled'].sum())
+        overage = int((df['qty_fulfilled'] - df['qty_ordered']).clip(lower=0).sum())
+        return fulfilled, ordered, overage
+
+    t_done, t_total, t_over = progress(today_df)
+    w_done, w_total, w_over = progress(week_df)
+    m_done, m_total, _ = progress(month_df)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Today", f"{t_done} / {t_total}")
+    c2.metric("This week", f"{w_done} / {w_total}")
+    c3.metric("Month to date", f"{m_done} / {m_total}")
+    c4.metric("Over-production (week)", f"{w_over}")
+
+
+def _render_date_goals(day_df, recipes_df):
+    """Renders a single date's goals as a read-only grid."""
+    # Group by product so a product with multiple time slots shows as one card.
+    unique_products = day_df['product_id'].unique()
+
+    for i in range(0, len(unique_products), 2):
         cols = st.columns(2)
         for j in range(2):
-            if i + j < len(df):
-                row = df.iloc[i+j]
+            if i + j < len(unique_products):
+                p_id = unique_products[i + j]
+                group_df = day_df[day_df['product_id'] == p_id]
                 with cols[j]:
-                    render_card(row, recipes_df)
+                    _render_product_card(group_df, recipes_df)
 
-def render_card(row, recipes_df):
+
+def _render_product_card(group_df, recipes_df):
+    first_row = group_df.iloc[0]
+    product_name = first_row['Product']
+    product_id = first_row['product_id']
+
+    # If every slot for this product is complete, de-emphasize the card.
+    all_done = bool((group_df['qty_fulfilled'] >= group_df['qty_ordered']).all())
+
     with st.container(border=True):
-        # Layout: Info (Name, Stats, Bar) | Actions (+/-)
-        c_info, c_act = st.columns([3, 1], vertical_alignment="center")
+        display_name = f"[{product_id}] {product_name}"
+        if first_row['active'] == 0:
+            display_name = f"⚠️ {display_name}"
 
-        with c_info:
-            # Name & ID
-            name = f"[{row['product_id']}] {row['Product']}"
-            if row['active'] == 0:
-                name = "⚠️ " + name
-            
-            # Variant Badge
-            v_type = row.get('variant_type', 'STD')
-            variant_str = ":green[**[STD]**]"
-            if v_type == 'DLX':
-                variant_str = ":blue[**[DLX]**]"
-            elif v_type == 'PRM':
-                variant_str = ":red[**[PRM]**]"
+        v_type = first_row.get('variant_type', 'STD')
+        if v_type == 'DLX':
+            badge = ":blue[**[DLX]**]"
+        elif v_type == 'PRM':
+            badge = ":red[**[PRM]**]"
+        else:
+            badge = ":green[**[STD]**]"
 
-            st.markdown(f"**{name}** {variant_str}")
+        if all_done:
+            st.markdown(f"✅ :grey[~~**{display_name}**~~] {badge}")
+        else:
+            st.markdown(f"**{display_name}** {badge}")
 
-            if pd.notna(row['note']) and row['note']:
-                st.caption(f"📝 {row['note']}")
-            
-            # Stats
-            stock = row['stock_on_hand']
-            needed = row['required_qty']
-            
-            # Health Bar Calculation
-            if needed > 0:
-                progress = max(0.0, min(1.0, stock / needed))
+        if pd.notna(first_row.get('note')) and first_row.get('note'):
+            st.caption(f"📝 {first_row['note']}")
+
+        # One line per time slot.
+        for slot in group_df['time_slot'].unique():
+            slot_df = group_df[group_df['time_slot'] == slot]
+            ordered = int(slot_df['qty_ordered'].sum())
+            fulfilled = int(slot_df['qty_fulfilled'].sum())
+            needed = max(0, ordered - fulfilled)
+            over = max(0, fulfilled - ordered)
+
+            if slot == 'AM':
+                slot_label = ":blue[**AM**]"
+            elif slot == 'PM':
+                slot_label = ":orange[**PM**]"
             else:
-                progress = 1.0 if stock > 0 else 0.0
-            
-            st.progress(progress)
-            
-            # Text Status
-            # Green if we have enough, Red if we are short
-            color = "green" if stock >= needed else "red"
-            st.markdown(f"Cooler: :{color}[**{stock}**] / Needed: **{needed}**")
-            
-            # Surplus/Deficit Indicator
-            diff = stock - needed
-            if diff > 0:
-                st.caption(f"(+{diff} surplus)")
-            elif diff < 0:
-                st.caption(f"({diff} deficit)")
+                slot_label = "**Any**"
 
-        with c_act:
-            # Split Make actions
-            b1, b2 = st.columns([2, 1], gap="small")
-            with b1:
-                st.button(
-                    "➕", 
-                    key=f"make_stock_{row['product_id']}", 
-                    width="stretch",
-                    on_click=handle_make_stock,
-                    args=(int(row['product_id']), row['Product'])
-                )
-            with b2:
-                if st.button("📝", key=f"adj_stock_{row['product_id']}", help="Make with Adjustments", width="stretch"):
-                    adjustment_modal(
-                        key_prefix=f"stock_{int(row['product_id'])}",
-                        display_name=row['Product'],
-                        product_name=row['Product'],
-                        on_confirm=lambda subs: db_utils.produce_stock(int(row['product_id']), substitutions=subs, ignore_recipe=True),
-                        toast_key='prod_dash_toast',
-                        toast_success_msg=f"Made 1 {row['Product']} (Custom)",
-                    )
-            
-            # Undo Button (Removes from Stock)
-            st.button(
-                "➖", 
-                key=f"undo_stock_{row['product_id']}", 
-                width="stretch",
-                disabled=stock <= 0,
-                on_click=handle_undo_stock,
-                args=(int(row['product_id']), row['Product'])
-            )
-        
+            if needed == 0 and over == 0:
+                status = "✅ Done"
+            elif needed == 0 and over > 0:
+                status = f"✅ Done (+{over} excess)"
+            else:
+                progress_pct = fulfilled / ordered if ordered else 0.0
+                status = f"**{fulfilled}** / {ordered}  ·  {progress_pct:.0%}"
+
+            c_slot, c_stat = st.columns([1, 3], vertical_alignment="center")
+            with c_slot:
+                st.markdown(slot_label)
+            with c_stat:
+                st.markdown(status)
+
         with st.expander("🌿 Recipe & Image"):
-            if 'image_data' in row and pd.notna(row['image_data']):
-                st.image(io.BytesIO(row['image_data']), width=200)
-            
-            # Filter for recipe
-            r_data = recipes_df[recipes_df['product_id'] == row['product_id']]
+            if 'image_data' in first_row and pd.notna(first_row['image_data']):
+                st.image(io.BytesIO(first_row['image_data']), width=200)
+            r_data = recipes_df[recipes_df['product_id'] == product_id]
             if not r_data.empty:
                 st.dataframe(
-                    r_data[['Ingredient', 'Qty', 'Note']], 
-                    hide_index=True, 
-                    width="stretch"
+                    r_data[['Ingredient', 'Qty', 'Note']],
+                    hide_index=True,
+                    width="stretch",
                 )
             else:
                 st.caption("No ingredients listed.")
