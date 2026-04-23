@@ -40,7 +40,8 @@ def initialize_database(db_path='inventory.db', reset=False):
                 sub_category TEXT,
                 count_on_hand INTEGER DEFAULT 0,
                 unit_cost REAL DEFAULT 0.00,
-                bundle_count INTEGER DEFAULT 1
+                bundle_count INTEGER DEFAULT 1,
+                track_inventory INTEGER NOT NULL DEFAULT 1
             )
         ''')
 
@@ -109,6 +110,17 @@ def initialize_database(db_path='inventory.db', reset=False):
                 cursor.execute("ALTER TABLE production_goals ADD COLUMN time_slot TEXT DEFAULT 'Any'")
                 logger.info("Migrated production_goals: Added time_slot column.")
                 print("✅ Migrated database: Added 'time_slot' to production_goals.")
+            except sqlite3.Error as e:
+                logger.error(f"Migration failed: {e}")
+
+        # --- MIGRATION: Ensure track_inventory exists on inventory (for existing DBs) ---
+        cursor.execute("PRAGMA table_info(inventory)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'track_inventory' not in columns:
+            try:
+                cursor.execute("ALTER TABLE inventory ADD COLUMN track_inventory INTEGER NOT NULL DEFAULT 1")
+                logger.info("Migrated inventory: Added track_inventory column.")
+                print("✅ Migrated database: Added 'track_inventory' to inventory.")
             except sqlite3.Error as e:
                 logger.error(f"Migration failed: {e}")
 

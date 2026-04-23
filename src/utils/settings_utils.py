@@ -13,7 +13,8 @@ DEFAULT_SETTINGS = {
         ],
         "markup": 3.5
     },
-    "low_stock_threshold": 25
+    "low_stock_threshold": 25,
+    "default_track_inventory": False
 }
 
 def load_settings():
