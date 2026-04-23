@@ -4,12 +4,18 @@ from src.utils import db_utils
 
 def render_eod_tools(raw_inventory_df):
     st.header("EOD Inventory Count")
-    
+
+    # End-of-day count is for items that are physically counted at close. Untracked
+    # items (typically cut flowers that are substituted/consumed without counting)
+    # are not on the count sheet.
+    if not raw_inventory_df.empty and 'track_inventory' in raw_inventory_df.columns:
+        raw_inventory_df = raw_inventory_df[raw_inventory_df['track_inventory'] == 1]
+
     if not raw_inventory_df.empty:
         st.subheader("Download Inventory List")
-        
+
         col_cat_select, col_download = st.columns(2)
-        
+
         with col_cat_select:
         # Get unique categories, filtering out None/Empty
             categories = sorted([c for c in raw_inventory_df['category'].unique() if c])

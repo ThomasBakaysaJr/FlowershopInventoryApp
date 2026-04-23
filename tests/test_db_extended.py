@@ -1,7 +1,7 @@
-import pytest
 import sqlite3
 import os
 import sys
+import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -113,3 +113,126 @@ def test_update_product_recipe_migrates_unfulfilled_goals(setup_db):
     cursor.execute("SELECT COUNT(*) FROM production_goals WHERE product_id = ?", (p_id,))
     assert cursor.fetchone()[0] == 0  # old product_id has no goals left
     conn.close()
+
+
+# -------------------------------------------------------------------
+# track_inventory behavior (introduced with the retail-refactor series)
+# -------------------------------------------------------------------
+
+def test_get_inventory_includes_untracked_items(setup_db):
+    """get_inventory does not filter by track_inventory — the column is exposed raw."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO inventory (name, category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Untracked Stem', 'Stem', 50, 0.10, 1, 0)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    df = db_utils.get_inventory()
+    names = set(df['name'].tolist())
+    assert 'Untracked Stem' in names
+    assert 'Red Rose' in names  # seeded, default tracked
+    assert set(df['track_inventory'].astype(int).unique()) == {0, 1}
+
+
+def test_export_inventory_csv_includes_untracked_and_column(setup_db):
+    """CSV export carries every item (tracked or not) and the track_inventory column."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE inventory SET track_inventory = 0 WHERE name = 'Red Rose'")
+        conn.commit()
+    finally:
+        conn.close()
+
+    csv = db_utils.export_inventory_csv()
+    header = csv.splitlines()[0]
+    assert 'track_inventory' in header
+    assert 'Red Rose' in csv
+    assert 'White Lily' in csv
+
+
+def test_add_inventory_item_threads_track_flag(setup_db):
+    """add_inventory_item persists the provided track_inventory value; default is tracked."""
+    assert db_utils.add_inventory_item('Special Vase', 'Hardgood', None, 10, 5.00, 1, track_inventory=1)
+    assert db_utils.add_inventory_item('Random Filler', 'Greenery', None, 50, 0.25, 1, track_inventory=0)
+    assert db_utils.add_inventory_item('Default Item', 'Misc', None, 5, 1.00, 1)
+
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name, track_inventory FROM inventory WHERE name IN (?, ?, ?)",
+            ('Special Vase', 'Random Filler', 'Default Item'),
+        )
+        got = dict(cursor.fetchall())
+    finally:
+        conn.close()
+
+    assert got == {'Special Vase': 1, 'Random Filler': 0, 'Default Item': 1}
+
+
+def test_update_item_details_preserves_track_when_not_passed(setup_db):
+    """Calling update_item_details without the track_inventory kwarg leaves the flag alone."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE inventory SET track_inventory = 0 WHERE name = 'Red Rose'")
+        cursor.execute("SELECT item_id FROM inventory WHERE name = 'Red Rose'")
+        rose_id = cursor.fetchone()[0]
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert db_utils.update_item_details(rose_id, 50, 2.00, 2) is True
+
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT count_on_hand, unit_cost, bundle_count, track_inventory FROM inventory WHERE item_id = ?",
+            (rose_id,),
+        )
+        assert cursor.fetchone() == (50, 2.00, 2, 0)
+    finally:
+        conn.close()
+
+
+def test_forecast_generic_requirements_aggregates_category_demand(setup_db):
+    """Forecaster's generic-category aggregation reflects Category recipes regardless of whether
+    candidate items are tracked. Critical for the flower shop, whose flowers are untracked yet
+    still need to appear on the purchasing-forecast view."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        # An untracked rose in the catalog (category Rose)
+        cursor.execute(
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Pink Rose', 'Stem', 'Rose', 50, 0.50, 25, 0)"
+        )
+        # Add a Category recipe line for the seeded product: "6 of any Rose"
+        cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1")
+        p_id = cursor.fetchone()[0]
+        cursor.execute(
+            "INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) "
+            "VALUES (?, NULL, 6, 'Category', 'Rose')",
+            (p_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Seeded goal: qty_ordered=10, qty_fulfilled=0, due_date=2023-10-30.
+    result = db_utils.get_forecast_generic_requirements(
+        datetime.date(2023, 10, 1),
+        datetime.date(2023, 11, 1),
+    )
+    assert not result.empty
+    rose_rows = result[result['Category'] == 'Rose']
+    assert not rose_rows.empty
+    # 10 outstanding × 6 roses each = 60
+    assert int(rose_rows.iloc[0]['Needed']) == 60

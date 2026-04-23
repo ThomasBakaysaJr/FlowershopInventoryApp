@@ -25,12 +25,15 @@ def render_stock_levels(raw_inventory_df):
     st.header("Current Stock Levels")
     
     # --- LOW STOCK WARNING LOGIC ---
+    # Only tracked items should raise low-stock alerts. Untracked items are
+    # recipe-only (e.g. cut flowers) and aren't expected to carry meaningful stock counts.
     if not raw_inventory_df.empty:
         settings = settings_utils.load_settings()
         threshold = settings.get('low_stock_threshold', 25)
-        
-        low_stock_items = raw_inventory_df[raw_inventory_df['count_on_hand'] < threshold]
-        
+
+        tracked_df = raw_inventory_df[raw_inventory_df['track_inventory'] == 1]
+        low_stock_items = tracked_df[tracked_df['count_on_hand'] < threshold]
+
         if not low_stock_items.empty:
             with st.expander(f"⚠️ **Low Stock Alert**: {len(low_stock_items)} items below {threshold}", expanded=True):
                 st.dataframe(
