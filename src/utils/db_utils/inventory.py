@@ -27,15 +27,21 @@ def get_inventory() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def update_item_details(item_id, count, cost, bundle_count):
-    """Updates count, cost, and bundle_count for an inventory item."""
+def update_item_details(item_id, count, cost, bundle_count, track_inventory=None):
+    """Updates count, cost, bundle_count, and optionally track_inventory for an item."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE inventory SET count_on_hand = ?, unit_cost = ?, bundle_count = ? WHERE item_id = ?",
-            (count, cost, bundle_count, item_id),
-        )
+        if track_inventory is None:
+            cursor.execute(
+                "UPDATE inventory SET count_on_hand = ?, unit_cost = ?, bundle_count = ? WHERE item_id = ?",
+                (count, cost, bundle_count, item_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE inventory SET count_on_hand = ?, unit_cost = ?, bundle_count = ?, track_inventory = ? WHERE item_id = ?",
+                (count, cost, bundle_count, int(track_inventory), item_id),
+            )
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -63,7 +69,7 @@ def update_inventory_cost(item_id: int, new_cost: float) -> bool:
         conn.close()
 
 
-def add_inventory_item(name: str, category: str, sub_category: str, count: int, cost: float, bundle_count: int) -> bool:
+def add_inventory_item(name: str, category: str, sub_category: str, count: int, cost: float, bundle_count: int, track_inventory: int = 1) -> bool:
     """Adds a new inventory item. Returns False if name already exists."""
     conn = get_connection()
     try:
@@ -73,8 +79,8 @@ def add_inventory_item(name: str, category: str, sub_category: str, count: int, 
             logger.warning(f"add_inventory_item: Duplicate name '{name}'")
             return False
         cursor.execute(
-            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count) VALUES (?, ?, ?, ?, ?, ?)",
-            (name, category, sub_category, count, cost, bundle_count),
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, category, sub_category, count, cost, bundle_count, int(track_inventory)),
         )
         conn.commit()
         return True
@@ -122,7 +128,7 @@ def export_inventory_csv() -> str:
     conn = get_connection()
     try:
         df = pd.read_sql_query(
-            "SELECT item_id, name, category, sub_category, unit_cost, bundle_count, count_on_hand FROM inventory ORDER BY category, name",
+            "SELECT item_id, name, category, sub_category, unit_cost, bundle_count, count_on_hand, track_inventory FROM inventory ORDER BY category, name",
             conn,
         )
         return df.to_csv(index=False)
@@ -134,7 +140,12 @@ def export_inventory_csv() -> str:
 
 
 def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
-    """Reads a CSV and updates inventory counts/costs. Matches by ID first, then inserts."""
+    """Reads a CSV and updates inventory counts/costs. Matches by ID first, then inserts.
+
+    The CSV may include an optional `track_inventory` column (0/1 or true/false).
+    When absent, new items use the `default_track_inventory` setting as the default;
+    existing items keep their current flag.
+    """
     try:
         df = pd.read_csv(file_obj)
         df.columns = [c.lower().strip() for c in df.columns]
@@ -143,6 +154,11 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
     except Exception as e:
         logger.error(f"process_bulk_inventory_upload: CSV Error: {e}")
         return 0, [str(e)]
+
+    # Default for new rows when the column is missing or blank.
+    from src.utils import settings_utils
+    default_track = 1 if settings_utils.load_settings().get('default_track_inventory', False) else 0
+    has_track_col = 'track_inventory' in df.columns
 
     conn = get_connection()
     try:
@@ -189,20 +205,43 @@ def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
                     except (ValueError, TypeError):
                         i_id = None
 
+                row_track = None
+                if has_track_col:
+                    raw_track = row.get('track_inventory', None)
+                    if pd.notna(raw_track):
+                        s = str(raw_track).strip().lower()
+                        if s in ('1', 'true', 'yes', 'y', 't'):
+                            row_track = 1
+                        elif s in ('0', 'false', 'no', 'n', 'f'):
+                            row_track = 0
+                        else:
+                            try:
+                                row_track = 1 if int(float(s)) else 0
+                            except (ValueError, TypeError):
+                                row_track = None
+
                 if i_id:
-                    cursor.execute(
-                        "UPDATE inventory SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=? WHERE item_id=?",
-                        (name, cat, sub, qty, cost, bundle, i_id),
-                    )
-                    if cursor.rowcount == 0:
+                    if row_track is None:
                         cursor.execute(
-                            "INSERT INTO inventory (item_id, name, category, sub_category, count_on_hand, unit_cost, bundle_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (i_id, name, cat, sub, qty, cost, bundle),
+                            "UPDATE inventory SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=? WHERE item_id=?",
+                            (name, cat, sub, qty, cost, bundle, i_id),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE inventory SET name=?, category=?, sub_category=?, count_on_hand=?, unit_cost=?, bundle_count=?, track_inventory=? WHERE item_id=?",
+                            (name, cat, sub, qty, cost, bundle, row_track, i_id),
+                        )
+                    if cursor.rowcount == 0:
+                        track = row_track if row_track is not None else default_track
+                        cursor.execute(
+                            "INSERT INTO inventory (item_id, name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (i_id, name, cat, sub, qty, cost, bundle, track),
                         )
                 else:
+                    track = row_track if row_track is not None else default_track
                     cursor.execute(
-                        "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count) VALUES (?, ?, ?, ?, ?, ?)",
-                        (name, cat, sub, qty, cost, bundle),
+                        "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (name, cat, sub, qty, cost, bundle, track),
                     )
 
                 updated_count += 1

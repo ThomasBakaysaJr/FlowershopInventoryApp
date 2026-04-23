@@ -46,16 +46,33 @@ def render_settings_panel():
     # 3. Inventory Section
     st.subheader("Inventory Alerts")
     st.caption("Configure stock level warnings.")
-    
+
     current_threshold = settings.get('low_stock_threshold', 25)
     new_threshold = st.number_input("Low Stock Threshold", min_value=0, value=int(current_threshold), step=1, help="Items below this count will show a warning.")
 
     st.divider()
-    
+
+    # 4. Inventory Defaults
+    st.subheader("Inventory Defaults")
+    st.caption("How new items behave by default.")
+
+    current_default_track = settings.get('default_track_inventory', False)
+    new_default_track = st.checkbox(
+        "Track new inventory items by default",
+        value=bool(current_default_track),
+        help=(
+            "When on, new items created via the Add Item form or bulk CSV upload default to tracked — "
+            "they appear in Stock Levels, EOD counts, and low-stock alerts. Turn off if most of your "
+            "items are recipe-only ingredients (e.g. cut flowers) where individual counts aren't tracked."
+        ),
+    )
+
+    st.divider()
+
     if st.button("💾 Save Settings", type="primary", width="stretch"):
         # Reconstruct settings object
         new_settings = settings.copy()
-        
+
         # Clean up additives dataframe to list of dicts
         cleaned_additives = []
         for _, row in edited_additives.iterrows():
@@ -65,15 +82,16 @@ def render_settings_panel():
                     "type": row['type'],
                     "value": float(row['value'])
                 })
-        
+
         new_settings['cost_formula'] = {
             "additives": cleaned_additives,
             "markup": new_markup
         }
-        
+
         # Save new threshold
         new_settings['low_stock_threshold'] = int(new_threshold)
-        
+        new_settings['default_track_inventory'] = bool(new_default_track)
+
         if settings_utils.save_settings(new_settings):
             st.success("Settings saved successfully!")
             st.rerun()

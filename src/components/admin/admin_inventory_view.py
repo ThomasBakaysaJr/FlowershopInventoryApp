@@ -17,6 +17,10 @@ def render_stock_levels(raw_inventory_df):
         raw_inventory_df['unit_cost'] = pd.to_numeric(raw_inventory_df['unit_cost'], errors='coerce').fillna(0.0)
         raw_inventory_df['count_on_hand'] = pd.to_numeric(raw_inventory_df['count_on_hand'], errors='coerce').fillna(0).astype(int)
         raw_inventory_df['bundle_count'] = pd.to_numeric(raw_inventory_df['bundle_count'], errors='coerce').fillna(1).astype(int)
+        # track_inventory may be absent on pre-migration DBs; default to tracked.
+        if 'track_inventory' not in raw_inventory_df.columns:
+            raw_inventory_df['track_inventory'] = 1
+        raw_inventory_df['track_inventory'] = pd.to_numeric(raw_inventory_df['track_inventory'], errors='coerce').fillna(1).astype(int)
 
     st.header("Current Stock Levels")
     
@@ -71,6 +75,9 @@ def render_stock_levels(raw_inventory_df):
         # Calculate height to show all rows (35px per row + 38px header + buffer)
         data_height = (len(filtered_df) * 35) + 38
 
+        # Render track_inventory as a boolean checkbox for the editor.
+        filtered_df = filtered_df.assign(track_inventory=filtered_df['track_inventory'].astype(bool))
+
         edited_df = st.data_editor(
             filtered_df,
             column_config={
@@ -80,7 +87,8 @@ def render_stock_levels(raw_inventory_df):
                 "sub_category": st.column_config.TextColumn("Sub-Category", disabled=True),
                 "count_on_hand": st.column_config.NumberColumn("Stock", min_value=0, step=1, required=True),
                 "bundle_count": st.column_config.NumberColumn("Bundle Qty", min_value=1, step=1, required=True, help="Items per bundle/pack"),
-                "unit_cost": st.column_config.NumberColumn("Cost ($)", min_value=0.0, step=0.01, format="$%.2f", required=True)
+                "unit_cost": st.column_config.NumberColumn("Cost ($)", min_value=0.0, step=0.01, format="$%.2f", required=True),
+                "track_inventory": st.column_config.CheckboxColumn("Track", help="Track stock for this item. Turn off for recipe-only ingredients (e.g. cut flowers) you don't count individually."),
             },
             hide_index=True,
             height=data_height,
@@ -97,12 +105,13 @@ def render_stock_levels(raw_inventory_df):
             original = raw_inventory_df[raw_inventory_df['item_id'] == row['item_id']]
             if not original.empty:
                 orig_row = original.iloc[0]
-                
+
                 cost_changed = abs(row['unit_cost'] - orig_row['unit_cost']) > 0.001
                 count_changed = row['count_on_hand'] != orig_row['count_on_hand']
                 bundle_changed = row['bundle_count'] != orig_row['bundle_count']
-                
-                if cost_changed or count_changed or bundle_changed:
+                track_changed = bool(row['track_inventory']) != bool(orig_row['track_inventory'])
+
+                if cost_changed or count_changed or bundle_changed or track_changed:
                     changes_count += 1
                     changed_rows.append(row)
                     diff_data.append({
@@ -112,16 +121,24 @@ def render_stock_levels(raw_inventory_df):
                         "Old Bundle": orig_row['bundle_count'],
                         "New Bundle": row['bundle_count'],
                         "Old Cost": orig_row['unit_cost'],
-                        "New Cost": row['unit_cost']
+                        "New Cost": row['unit_cost'],
+                        "Old Track": bool(orig_row['track_inventory']),
+                        "New Track": bool(row['track_inventory']),
                     })
 
         def perform_save():
             if changes_count > 0:
                 success_count = 0
                 for row in changed_rows:
-                    if db_utils.update_item_details(row['item_id'], row['count_on_hand'], row['unit_cost'], row['bundle_count']):
+                    if db_utils.update_item_details(
+                        row['item_id'],
+                        row['count_on_hand'],
+                        row['unit_cost'],
+                        row['bundle_count'],
+                        track_inventory=int(bool(row['track_inventory'])),
+                    ):
                         success_count += 1
-                
+
                 if success_count > 0:
                     logger.info(f"Inventory updated via Admin: {success_count} items changed.")
                     st.toast(f"Updated {success_count} items.")
@@ -136,8 +153,8 @@ def render_stock_levels(raw_inventory_df):
             
             diff_df = pd.DataFrame(diff_data)
             # Ensure column order for consistent indexing in the styler
-            diff_df = diff_df[["Item", "Old Stock", "New Stock", "Old Bundle", "New Bundle", "Old Cost", "New Cost"]]
-            
+            diff_df = diff_df[["Item", "Old Stock", "New Stock", "Old Bundle", "New Bundle", "Old Cost", "New Cost", "Old Track", "New Track"]]
+
             def highlight_cells(x):
                 c = [''] * len(x)
                 # Highlight New Stock (Index 2) if changed
@@ -149,6 +166,9 @@ def render_stock_levels(raw_inventory_df):
                 # Highlight New Cost (Index 6) if changed
                 if abs(x['New Cost'] - x['Old Cost']) > 0.001:
                     c[6] = 'background-color: rgba(255, 235, 59, 0.3); color: black;'
+                # Highlight New Track (Index 8) if changed
+                if bool(x['New Track']) != bool(x['Old Track']):
+                    c[8] = 'background-color: rgba(255, 235, 59, 0.3); color: black;'
                 return c
 
             st.dataframe(
@@ -156,7 +176,7 @@ def render_stock_levels(raw_inventory_df):
                 hide_index=True,
                 width="stretch"
             )
-            st.warning(f"You have unsaved changes.", icon="⚠️")
+            st.warning("You have unsaved changes.", icon="⚠️")
 
         if st.button("💾 Save Changes", key="save_inventory_changes", type="primary" if changes_count > 0 else "secondary", width="stretch"):
             perform_save()
@@ -165,6 +185,9 @@ def render_stock_levels(raw_inventory_df):
 
     st.divider()
     with st.expander("➕ Add New Item", expanded=False):
+        # Default the Track Inventory checkbox from settings (configurable per shop).
+        default_track = bool(settings_utils.load_settings().get('default_track_inventory', False))
+
         with st.form("add_item_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -176,7 +199,13 @@ def render_stock_levels(raw_inventory_df):
             with c3:
                 new_stock = st.number_input("Stock", min_value=0, step=1)
                 new_bundle = st.number_input("Bundle Qty", min_value=1, value=1, step=1)
-            
+
+            new_track = st.checkbox(
+                "Track inventory",
+                value=default_track,
+                help="Track stock for this item. Leave off for recipe-only ingredients (e.g. cut flowers) you don't count individually.",
+            )
+
             if st.form_submit_button("Add Item", type="primary", width="stretch"):
                 if not new_name or not new_name.strip():
                     st.error("Name is required.")
@@ -185,8 +214,8 @@ def render_stock_levels(raw_inventory_df):
                     final_name = new_name.strip()
                     final_cat = new_cat.strip() if new_cat and new_cat.strip() else None
                     final_sub = new_sub.strip() if new_sub and new_sub.strip() else None
-                    
-                    if db_utils.add_inventory_item(final_name, final_cat, final_sub, new_stock, new_cost, new_bundle):
+
+                    if db_utils.add_inventory_item(final_name, final_cat, final_sub, new_stock, new_cost, new_bundle, int(new_track)):
                         st.toast(f"Added '{final_name}'!", icon="✅")
                         time.sleep(0.25)
                         st.rerun()
