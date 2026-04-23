@@ -40,7 +40,7 @@ def get_all_recipes() -> pd.DataFrame:
     conn = get_connection()
     try:
         query = """
-        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.active, p.stock_on_hand, p.category, p.note as ProductNote, p.variant_type,
+        SELECT p.product_id, p.display_name as Product, p.selling_price as Price, p.active, p.category, p.note as ProductNote, p.variant_type,
                r.item_id,
                COALESCE(i.name, 'Any ' || r.requirement_value, 'Unknown Item') as Ingredient,
                r.qty_needed as Qty,
@@ -140,14 +140,14 @@ def get_product_details(product_name: str) -> Optional[dict]:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT product_id, selling_price, image_data, display_name, stock_on_hand, category, note, variant_group_id, variant_type FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1",
+            "SELECT product_id, selling_price, image_data, display_name, category, note, variant_group_id, variant_type FROM products WHERE display_name = ? COLLATE NOCASE AND active = 1",
             (product_name,),
         )
         res = cursor.fetchone()
         if not res:
             return None
 
-        p_id, price, img, db_name, stock, category, note, group_id, v_type = res
+        p_id, price, img, db_name, category, note, group_id, v_type = res
 
         cursor.execute(
             """
@@ -196,7 +196,6 @@ def get_product_details(product_name: str) -> Optional[dict]:
             "price": price,
             "image_data": img,
             "recipe": recipe_items,
-            "stock_on_hand": stock,
             "category": category,
             "note": note,
             "variant_group_id": group_id,
@@ -364,7 +363,6 @@ def update_product_recipe(
     recipe_items: List[Union[Tuple[int, int], dict]],
     image_bytes: Optional[bytes] = None,
     new_price: Optional[float] = None,
-    rollover_stock: bool = True,
     variant_group_id: Optional[str] = None,
     category: Optional[str] = None,
     migrate_goals: bool = False,
@@ -377,14 +375,14 @@ def update_product_recipe(
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT selling_price, image_data, display_name, stock_on_hand, note, variant_group_id, variant_type, category FROM products WHERE product_id = ?",
+            "SELECT selling_price, image_data, display_name, note, variant_group_id, variant_type, category FROM products WHERE product_id = ?",
             (current_product_id,),
         )
         res = cursor.fetchone()
         if not res:
             return False
 
-        old_price, old_image_data, old_name, current_stock, old_note, old_group_id, old_variant_type, old_category = res
+        old_price, old_image_data, old_name, old_note, old_group_id, old_variant_type, old_category = res
 
         final_price = new_price if new_price is not None else old_price
         final_image = image_bytes if image_bytes is not None else old_image_data
@@ -405,10 +403,9 @@ def update_product_recipe(
 
         cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (current_product_id,))
 
-        final_stock = current_stock if rollover_stock else 0
         cursor.execute(
-            "INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
-            (final_name, final_price, final_image, final_stock, final_category, final_note, final_group_id, old_variant_type or 'STD'),
+            "INSERT INTO products (display_name, selling_price, image_data, active, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+            (final_name, final_price, final_image, final_category, final_note, final_group_id, old_variant_type or 'STD'),
         )
         new_p_id = cursor.lastrowid
 
@@ -599,23 +596,22 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
 
                 if prod_exists:
                     cursor.execute(
-                        "SELECT image_data, stock_on_hand, variant_group_id, variant_type, category FROM products WHERE product_id = ?",
+                        "SELECT image_data, variant_group_id, variant_type, category FROM products WHERE product_id = ?",
                         (target_p_id,),
                     )
                     existing_data = cursor.fetchone()
                     old_img = existing_data[0] if existing_data else None
-                    old_stock = existing_data[1] if existing_data else 0
-                    old_group_id = existing_data[2] if existing_data and existing_data[2] else str(uuid.uuid4())
-                    old_variant_type = existing_data[3] if existing_data and existing_data[3] else 'STD'
-                    old_category = existing_data[4] if existing_data else 'Standard'
+                    old_group_id = existing_data[1] if existing_data and existing_data[1] else str(uuid.uuid4())
+                    old_variant_type = existing_data[2] if existing_data and existing_data[2] else 'STD'
+                    old_category = existing_data[3] if existing_data else 'Standard'
 
                     final_img = new_image_bytes if new_image_bytes else old_img
                     final_cat = cat if cat is not None else old_category
 
                     cursor.execute("UPDATE products SET active = 0 WHERE product_id = ?", (target_p_id,))
                     cursor.execute(
-                        "INSERT INTO products (display_name, selling_price, image_data, active, stock_on_hand, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
-                        (product_name, price, final_img, old_stock, final_cat, prod_note, old_group_id, old_variant_type),
+                        "INSERT INTO products (display_name, selling_price, image_data, active, category, note, variant_group_id, variant_type) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+                        (product_name, price, final_img, final_cat, prod_note, old_group_id, old_variant_type),
                     )
                     new_id = cursor.lastrowid
 
@@ -654,13 +650,13 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
 
                     if target_p_id:
                         cursor.execute(
-                            "INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)",
+                            "INSERT INTO products (product_id, display_name, selling_price, image_data, category, active, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
                             (target_p_id, product_name, price, new_image_bytes, final_cat, prod_note, new_group_id, variant_type),
                         )
                         new_id = target_p_id
                     else:
                         cursor.execute(
-                            "INSERT INTO products (display_name, selling_price, image_data, category, active, stock_on_hand, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, 0, ?, ?, ?)",
+                            "INSERT INTO products (display_name, selling_price, image_data, category, active, note, variant_group_id, variant_type) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
                             (product_name, price, new_image_bytes, final_cat, prod_note, new_group_id, variant_type),
                         )
                         new_id = cursor.lastrowid

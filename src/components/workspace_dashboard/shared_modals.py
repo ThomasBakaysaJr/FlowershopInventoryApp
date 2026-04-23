@@ -19,7 +19,6 @@ def generic_selection_modal(key_prefix, display_name, generic_reqs, on_confirm, 
 
     # Pass 1: read allocations from session state (set by previous render's widgets)
     substitutions_to_make = []
-    valid_form = True
     validation_data = []
 
     for req in generic_reqs:
@@ -42,8 +41,7 @@ def generic_selection_modal(key_prefix, display_name, generic_reqs, on_confirm, 
             'allocated': current_allocated,
         })
 
-    # Confirm button at top (valid_form is always True — preserved from original)
-    if st.button("Confirm Production", type="primary", disabled=not valid_form,
+    if st.button("Confirm Production", type="primary",
                  width='stretch', key=f"{key_prefix}_confirm"):
         if on_confirm(substitutions_to_make):
             st.session_state[toast_key] = (toast_success_msg, "📦")

@@ -120,7 +120,7 @@ def seed_database():
     ]
 
     cursor.executemany('''
-        INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_made)
+        INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled)
         VALUES (?, ?, ?, ?)
     ''', production_goals)
 

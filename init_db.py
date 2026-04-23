@@ -53,7 +53,6 @@ def initialize_database(db_path='inventory.db', reset=False):
                 image_data BLOB,
                 selling_price REAL DEFAULT 0.00,
                 active BOOLEAN DEFAULT 1,
-                stock_on_hand INTEGER DEFAULT 0,
                 category TEXT DEFAULT 'Standard',
                 note TEXT,
                 variant_group_id TEXT,
@@ -95,7 +94,6 @@ def initialize_database(db_path='inventory.db', reset=False):
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goal_id INTEGER,
                 product_id INTEGER,
-                action_type TEXT DEFAULT 'MAKE',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(goal_id) REFERENCES production_goals(goal_id),
                 FOREIGN KEY(product_id) REFERENCES products(product_id)

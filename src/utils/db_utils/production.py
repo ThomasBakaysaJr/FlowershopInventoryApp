@@ -142,8 +142,7 @@ def log_production(
       with `track_inventory = 1`. Untracked items (e.g. cut flowers) are recipe
       references for pricing only; the app does not maintain their counts.
     - Writes one `production_logs` row per unit, preserving the unit-granular
-      undo pattern. Rows carry `action_type='MAKE'` for continuity with
-      historical logs.
+      undo pattern.
     - Auto-archives completed One-Off products once every goal for that
       product is fulfilled.
 
@@ -178,9 +177,9 @@ def log_production(
             (qty, goal_id),
         )
 
-        log_rows = [(goal_id, p_id, 'MAKE') for _ in range(qty)]
+        log_rows = [(goal_id, p_id) for _ in range(qty)]
         cursor.executemany(
-            "INSERT INTO production_logs (goal_id, product_id, action_type) VALUES (?, ?, ?)",
+            "INSERT INTO production_logs (goal_id, product_id) VALUES (?, ?)",
             log_rows,
         )
 
@@ -239,9 +238,6 @@ def undo_production(goal_id: int) -> bool:
     - Restores tracked Specific-recipe items from the original recipe version
       (the log's `product_id`, which survives recipe edits thanks to the
       immutable-product pattern).
-    - For legacy `PACK` logs (pre-collapse, when a cooler existed), we skip
-      the inventory-restore step: PACK never deducted inventory in the first
-      place, so there's nothing to give back.
     """
     conn = get_connection()
     try:
@@ -252,14 +248,14 @@ def undo_production(goal_id: int) -> bool:
             return False
 
         cursor.execute(
-            "SELECT log_id, action_type, product_id FROM production_logs "
+            "SELECT log_id, product_id FROM production_logs "
             "WHERE goal_id = ? ORDER BY log_id DESC LIMIT 1",
             (goal_id,),
         )
         log_res = cursor.fetchone()
         if not log_res:
             return False
-        log_id, action_type, log_p_id = log_res
+        log_id, log_p_id = log_res
 
         cursor.execute("DELETE FROM production_logs WHERE log_id = ?", (log_id,))
         cursor.execute(
@@ -267,22 +263,21 @@ def undo_production(goal_id: int) -> bool:
             (goal_id,),
         )
 
-        if action_type != 'PACK':
-            # Restore tracked recipe items using the log's original product version.
+        # Restore tracked recipe items using the log's original product version.
+        cursor.execute(
+            """
+            SELECT r.item_id, r.qty_needed
+            FROM recipes r
+            JOIN inventory i ON r.item_id = i.item_id
+            WHERE r.product_id = ? AND r.requirement_type = 'Specific' AND i.track_inventory = 1
+            """,
+            (log_p_id,),
+        )
+        for i_id, per_unit in cursor.fetchall():
             cursor.execute(
-                """
-                SELECT r.item_id, r.qty_needed
-                FROM recipes r
-                JOIN inventory i ON r.item_id = i.item_id
-                WHERE r.product_id = ? AND r.requirement_type = 'Specific' AND i.track_inventory = 1
-                """,
-                (log_p_id,),
+                "UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?",
+                (per_unit, i_id),
             )
-            for i_id, per_unit in cursor.fetchall():
-                cursor.execute(
-                    "UPDATE inventory SET count_on_hand = count_on_hand + ? WHERE item_id = ?",
-                    (per_unit, i_id),
-                )
 
         conn.commit()
         return True

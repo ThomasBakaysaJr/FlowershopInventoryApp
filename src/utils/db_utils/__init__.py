@@ -43,7 +43,6 @@ from .production import (
 )
 from .forecasting import (
     get_forecast_initial_data as get_forecast_initial_data,
-    get_production_requirements as get_production_requirements,
     get_forecast_generic_requirements as get_forecast_generic_requirements,
 )
 
