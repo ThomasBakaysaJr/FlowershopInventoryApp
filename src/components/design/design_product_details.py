@@ -89,13 +89,15 @@ def render_info_form(p_id, v_details, label, group_id):
 def render_create_button(v_type, label, base_name, group_id, category):
     st.info(f"No {label} version exists for this product.")
     if st.button(f"➕ Create {label} Version", key=f"create_{v_type}"):
-        # Strip existing suffix if present to get clean base
+        # Strip a trailing variant suffix only. Using .removesuffix avoids
+        # .replace's bug of clobbering internal occurrences (e.g.
+        # "Premium Standard Premium" → " Standard " with the old code).
         clean_base = base_name
-        for s in ['Standard', 'Deluxe', 'Premium']:
+        for s in ('Standard', 'Deluxe', 'Premium'):
             if clean_base.endswith(s):
-                clean_base = clean_base.replace(s, "").strip()
+                clean_base = clean_base.removesuffix(s).strip()
                 break
-        
+
         new_name = f"{clean_base} {label}"
         
         success = db_utils.create_new_product(

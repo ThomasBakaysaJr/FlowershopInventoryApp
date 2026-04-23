@@ -1,23 +1,17 @@
 import streamlit as st
 import pandas as pd
-import copy
 from src.utils import db_utils
 
 def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
     st.markdown("### 🌿 Recipe")
-    
+
     # Initialize session state for this product's recipe if not exists
     if f"recipe_state_{p_id}" not in st.session_state:
         st.session_state[f"recipe_state_{p_id}"] = v_details['recipe']
-    
+
     current_recipe = st.session_state[f"recipe_state_{p_id}"]
     if current_recipe:
         recipe_df = pd.DataFrame(current_recipe)
-        
-        # Ensure required columns exist to prevent KeyError
-        for col in ['name', 'qty', 'type', 'val', 'note']:
-            if col not in recipe_df.columns:
-                recipe_df[col] = None
 
         # Add a 'remove' column for the editor
         recipe_df['remove'] = False
@@ -104,9 +98,20 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                     new_recipe.append({'item_id': selected_item_id, 'qty': qty_add, 'type': 'Specific', 'val': None, 'name': selected_item_name, 'note': None})
             
             elif ing_type == "Generic Category" and selected_cat:
-                # Always add generics as new rows (or you could aggregate if names match exactly)
-                # We use the Category for the logic ('val') and the Custom Note for the user's description ('note')
-                new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat, 'name': f"Any {selected_cat}", 'note': custom_note})
+                # Aggregate by (category, note) so repeatedly clicking "Add" on
+                # the same "Any Rose" requirement bumps qty instead of creating
+                # duplicate rows. Two Category entries only coexist when the
+                # user gave them different notes — which means they *are*
+                # conceptually different requirements.
+                for r in new_recipe:
+                    if (r.get('type') == 'Category'
+                            and r.get('val') == selected_cat
+                            and (r.get('note') or None) == (custom_note or None)):
+                        r['qty'] += qty_add
+                        found = True
+                        break
+                if not found:
+                    new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat, 'name': f"Any {selected_cat}", 'note': custom_note})
             
             st.session_state[f"recipe_state_{p_id}"] = new_recipe
             st.rerun()
@@ -115,22 +120,18 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
             st.session_state[f"recipe_state_{p_id}"] = []
             st.rerun()
         
-        # Copy Logic
+        # Copy Logic: always copies the SAVED Standard recipe from the DB.
+        # Previously this also copied unsaved Standard edits from session state,
+        # which coupled three product_ids and silently discarded work on nav-away.
+        # If you want Standard's unsaved changes copied, save Standard first.
         if v_type in ['DLX', 'PRM'] and 'STD' in variant_map:
-            if st.button(f"📋 Copy from Standard", key=f"copy_{p_id}"):
+            if st.button("📋 Copy from Standard", key=f"copy_{p_id}",
+                         help="Copies the saved Standard recipe. Save Standard first to include unsaved edits."):
                 std_info = variant_map['STD']
-                std_p_id = std_info['product_id']
-                
-                # Check for unsaved changes in session state first
-                if f"recipe_state_{std_p_id}" in st.session_state:
-                    st.session_state[f"recipe_state_{p_id}"] = copy.deepcopy(st.session_state[f"recipe_state_{std_p_id}"])
-                    st.toast("Copied recipe from Standard (Unsaved)!")
+                std_details = db_utils.get_product_details(std_info['name'])
+                if std_details and std_details['recipe']:
+                    st.session_state[f"recipe_state_{p_id}"] = std_details['recipe']
+                    st.toast("Copied recipe from Standard!")
                     st.rerun()
                 else:
-                    std_details = db_utils.get_product_details(std_info['name'])
-                    if std_details and std_details['recipe']:
-                        st.session_state[f"recipe_state_{p_id}"] = std_details['recipe']
-                        st.toast("Copied recipe from Standard!")
-                        st.rerun()
-                    else:
-                        st.warning("Standard version has no recipe to copy.")
+                    st.warning("Standard version has no saved recipe to copy.")
