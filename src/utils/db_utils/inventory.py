@@ -107,15 +107,26 @@ def get_inventory_categories() -> List[str]:
         conn.close()
 
 
-def get_items_by_category(category: str) -> pd.DataFrame:
-    """Returns inventory items whose category OR sub_category matches."""
+def get_items_by_category(category: str, tracked_only: bool = False) -> pd.DataFrame:
+    """Returns inventory items whose category OR sub_category matches.
+
+    When tracked_only=True, only items with track_inventory=1 are returned
+    (used by the Category picker modal so the user isn't asked to pick
+    between items the system doesn't count anyway).
+    """
     conn = get_connection()
     try:
-        return pd.read_sql_query(
-            "SELECT item_id, name, count_on_hand FROM inventory WHERE (category = ? OR sub_category = ?) COLLATE NOCASE",
-            conn,
-            params=(category, category),
-        )
+        if tracked_only:
+            query = (
+                "SELECT item_id, name, count_on_hand FROM inventory "
+                "WHERE (category = ? OR sub_category = ?) COLLATE NOCASE AND track_inventory = 1"
+            )
+        else:
+            query = (
+                "SELECT item_id, name, count_on_hand FROM inventory "
+                "WHERE (category = ? OR sub_category = ?) COLLATE NOCASE"
+            )
+        return pd.read_sql_query(query, conn, params=(category, category))
     except Exception as e:
         logger.error(f"get_items_by_category: {e}")
         return pd.DataFrame()

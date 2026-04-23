@@ -75,8 +75,19 @@ def get_active_product_options() -> pd.DataFrame:
 
 def get_recipe_requirements(product_id: int) -> dict:
     """
-    Analyzes a recipe to see if it has 'Category' requirements that need user input.
-    Returns: {'has_generics': bool, 'specific_items': [(item_id, qty), ...], 'generic_items': [...]}
+    Analyzes a recipe and returns what the production flow needs to ask the user for.
+
+    Category-type recipe lines are only included when the category has at least one
+    tracked (track_inventory=1) candidate item — otherwise the user has nothing
+    meaningful to pick from (the deduction logic skips untracked items anyway), so
+    the modal is suppressed and production proceeds silently.
+
+    Returns: {
+        'has_generics': bool,      # True only if any Category line has tracked candidates
+        'specific_items': list,    # [(item_id, qty), ...] — unaffected by tracking
+        'generic_items': list,     # [{'category': str, 'qty': int, 'note': str}, ...]
+                                   # Only categories that resolve to ≥1 tracked item
+    }
     """
     conn = get_connection()
     try:
@@ -91,7 +102,6 @@ def get_recipe_requirements(product_id: int) -> dict:
 
         for item_id, qty, req_type, req_val, note in rows:
             if req_type == 'Category':
-                result['has_generics'] = True
                 cat = req_val
                 if cat in generic_map:
                     generic_map[cat]['qty'] += qty
@@ -103,7 +113,19 @@ def get_recipe_requirements(product_id: int) -> dict:
             else:
                 result['specific_items'].append((item_id, qty))
 
-        result['generic_items'] = list(generic_map.values())
+        # Include only categories that have at least one tracked candidate.
+        tracked_generics = []
+        for cat, entry in generic_map.items():
+            cursor.execute(
+                "SELECT 1 FROM inventory WHERE (category = ? OR sub_category = ?) "
+                "COLLATE NOCASE AND track_inventory = 1 LIMIT 1",
+                (cat, cat),
+            )
+            if cursor.fetchone():
+                tracked_generics.append(entry)
+
+        result['generic_items'] = tracked_generics
+        result['has_generics'] = bool(tracked_generics)
         return result
     except sqlite3.Error as e:
         logger.error(f"get_recipe_requirements: {e}")

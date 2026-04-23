@@ -202,6 +202,77 @@ def test_update_item_details_preserves_track_when_not_passed(setup_db):
         conn.close()
 
 
+def test_recipe_requirements_suppress_category_when_all_candidates_untracked(setup_db):
+    """If every candidate item for a Category line is untracked, the category is excluded
+    from get_recipe_requirements — modal never surfaces for flower-only recipes."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        # Two untracked roses in the Rose category.
+        cursor.execute(
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Pink Rose', 'Stem', 'Rose', 50, 0.5, 25, 0)"
+        )
+        cursor.execute(
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Ivory Rose', 'Stem', 'Rose', 40, 0.5, 25, 0)"
+        )
+        cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1")
+        p_id = cursor.fetchone()[0]
+        # Category requirement that resolves only to untracked items.
+        cursor.execute(
+            "INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) "
+            "VALUES (?, NULL, 6, 'Category', 'Rose')",
+            (p_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    reqs = db_utils.get_recipe_requirements(p_id)
+    assert reqs['has_generics'] is False
+    assert reqs['generic_items'] == []
+
+
+def test_recipe_requirements_keep_category_when_any_candidate_tracked(setup_db):
+    """If a Category line has at least one tracked candidate, it remains modal-relevant."""
+    conn = sqlite3.connect(setup_db)
+    try:
+        cursor = conn.cursor()
+        # Mix: two untracked roses + one tracked rose → modal should still show.
+        cursor.execute(
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Pink Rose', 'Stem', 'Rose', 50, 0.5, 25, 0)"
+        )
+        cursor.execute(
+            "INSERT INTO inventory (name, category, sub_category, count_on_hand, unit_cost, bundle_count, track_inventory) "
+            "VALUES ('Premium Ecuadorian Rose', 'Stem', 'Rose', 30, 2.5, 10, 1)"
+        )
+        cursor.execute("SELECT product_id FROM products WHERE display_name = 'Valentine Special' AND active = 1")
+        p_id = cursor.fetchone()[0]
+        cursor.execute(
+            "INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value) "
+            "VALUES (?, NULL, 6, 'Category', 'Rose')",
+            (p_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    reqs = db_utils.get_recipe_requirements(p_id)
+    assert reqs['has_generics'] is True
+    cats = [g['category'] for g in reqs['generic_items']]
+    assert 'Rose' in cats
+
+    # And the modal's candidate picker gets tracked items only.
+    tracked = db_utils.get_items_by_category('Rose', tracked_only=True)
+    assert len(tracked) == 1
+    assert tracked.iloc[0]['name'] == 'Premium Ecuadorian Rose'
+
+    all_candidates = db_utils.get_items_by_category('Rose', tracked_only=False)
+    assert len(all_candidates) == 2
+
+
 def test_forecast_generic_requirements_aggregates_category_demand(setup_db):
     """Forecaster's generic-category aggregation reflects Category recipes regardless of whether
     candidate items are tracked. Critical for the flower shop, whose flowers are untracked yet

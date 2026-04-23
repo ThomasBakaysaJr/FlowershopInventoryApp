@@ -24,7 +24,9 @@ def generic_selection_modal(key_prefix, display_name, generic_reqs, on_confirm, 
 
     for req in generic_reqs:
         category = req['category']
-        inventory_df = db_utils.get_items_by_category(category)
+        # Show only tracked candidates — untracked items aren't deducted anyway,
+        # so asking the user to pick between them has no effect.
+        inventory_df = db_utils.get_items_by_category(category, tracked_only=True)
 
         current_allocated = 0
         if not inventory_df.empty:
