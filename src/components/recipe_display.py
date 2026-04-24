@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import math
 from src.utils import db_utils
+from src.utils.constants import variant_badge
 
 def render_recipe_display(allow_edit=False):
     st.header("📖 Recipe Book")
@@ -70,15 +71,10 @@ def render_recipe_display(allow_edit=False):
 
         # Render only the batch
         for _, prod in batch_products.iterrows():
-            # Variant Badge
             v_type = prod.get('variant_type', 'STD')
-            badge = " :green[[STD]]"
-            if v_type == 'DLX':
-                badge = " :blue[[DLX]]"
-            elif v_type == 'PRM':
-                badge = " :red[[PRM]]"
-            
-            display_name = f"{prod['Product']}{badge} - ${prod['Price']:.2f}"
+            badge = variant_badge(v_type)
+
+            display_name = f"{prod['Product']} {badge} - ${prod['Price']:.2f}"
             
             if prod['active'] == 0:
                 display_name = f"⚠️ [Archived] {display_name}"

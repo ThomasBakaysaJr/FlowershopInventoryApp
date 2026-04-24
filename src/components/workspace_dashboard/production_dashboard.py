@@ -3,10 +3,11 @@ import pandas as pd
 import datetime
 import io
 from src.utils import db_utils
+from src.utils.constants import variant_badge, FRAGMENT_REFRESH_SECONDS
 from src.components import date_selector
 
 
-@st.fragment(run_every=60)  # read-only view → infrequent refresh is fine
+@st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["production_overview"])
 def render():
     st.subheader("📊 Production Overview")
     st.caption("Read-only status across today's and upcoming production goals. Use *Upcoming Orders* to actually log production.")
@@ -26,9 +27,9 @@ def render():
         st.info("No production goals in this range.")
         return
 
-    # Sort by date then time slot (AM → PM → Any) then product name
+    # Sort by date then time slot (AM → PM → Any) then product name.
+    # time_rank is already set by get_production_goals_range via normalize_time_slots.
     goals_df['due_date'] = pd.to_datetime(goals_df['due_date'])
-    goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
     goals_df = goals_df.sort_values(by=['due_date', 'time_rank', 'Product', 'goal_id'])
 
     recipes_df = db_utils.get_all_recipes()
@@ -98,12 +99,7 @@ def _render_product_card(group_df, recipes_df):
             display_name = f"⚠️ {display_name}"
 
         v_type = first_row.get('variant_type', 'STD')
-        if v_type == 'DLX':
-            badge = ":blue[**[DLX]**]"
-        elif v_type == 'PRM':
-            badge = ":red[**[PRM]**]"
-        else:
-            badge = ":green[**[STD]**]"
+        badge = variant_badge(v_type)
 
         if all_done:
             st.markdown(f"✅ :grey[~~**{display_name}**~~] {badge}")

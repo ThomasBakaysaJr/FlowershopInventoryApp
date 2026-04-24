@@ -4,10 +4,11 @@ import logging
 import pandas as pd
 from src.utils import db_utils
 from src.utils import settings_utils
+from src.utils.constants import FRAGMENT_REFRESH_SECONDS
 
 logger = logging.getLogger(__name__)
 
-@st.fragment(run_every=10)
+@st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["stock_levels"])
 def render_stock_levels(raw_inventory_df):
     # Fetch fresh data to ensure auto-updates work within the fragment
     raw_inventory_df = db_utils.get_inventory()

@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 from src.utils import db_utils
+from src.utils.constants import variant_badge, FRAGMENT_REFRESH_SECONDS
 from src.components import date_selector
 
-@st.fragment(run_every=10)
+@st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["production_viewer"])
 def render_production_viewer():
     st.header("📅 Production Manager")
     
@@ -47,15 +48,9 @@ def render_production_viewer():
         if search_term:
             goals_df = db_utils.filter_dataframe_by_terms(goals_df, 'Product', search_term)
 
-        # Create a working copy to avoid SettingWithCopyWarning
+        # Working copy avoids SettingWithCopyWarning.
+        # time_slot + time_rank are already normalized by get_production_goals_range.
         goals_df = goals_df.copy()
-        
-        # Ensure time_slot is clean (handle NaNs from SQL NULLs)
-        if 'time_slot' in goals_df.columns:
-            goals_df['time_slot'] = goals_df['time_slot'].fillna('Any').astype(str).str.strip().str.upper()
-        
-        # Sort by Date -> Product -> Time Rank (AM/PM/Any)
-        goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
         goals_df = goals_df.sort_values(by=['due_date', 'Product', 'time_rank'])
         
         # Indicate archived status
@@ -91,15 +86,9 @@ def render_production_viewer():
                     else:
                         st.write(date_str)
                 with c2:
-                    # Product Name + Badge
                     p_name = row['Product']
                     v_type = row.get('variant_type', 'STD')
-                    if v_type == 'DLX':
-                        st.markdown(f"{p_name} :blue[**[DLX]**]")
-                    elif v_type == 'PRM':
-                        st.markdown(f"{p_name} :red[**[PRM]**]")
-                    else:
-                        st.markdown(f"{p_name} :green[**[STD]**]")
+                    st.markdown(f"{p_name} {variant_badge(v_type)}")
                 with c3:
                     st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
                 

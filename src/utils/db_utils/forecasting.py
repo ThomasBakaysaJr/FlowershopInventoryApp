@@ -2,6 +2,7 @@ import pandas as pd
 import logging
 
 from ._core import get_connection
+from src.utils.utils import safe_date_string
 
 logger = logging.getLogger(__name__)
 
@@ -10,8 +11,8 @@ def get_forecast_initial_data(start_date, end_date) -> pd.DataFrame:
     """Fetches active products + archived ones with goals, aggregating expected qty."""
     conn = get_connection()
     try:
-        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
-        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        s_date = safe_date_string(start_date)
+        e_date = safe_date_string(end_date)
 
         query = """
         SELECT p.product_id, p.display_name as Product, p.active, COALESCE(SUM(MAX(0, pg.qty_ordered - pg.qty_fulfilled)), 0) as Expected
@@ -33,8 +34,8 @@ def get_forecast_generic_requirements(start_date, end_date) -> pd.DataFrame:
     """Returns aggregated demand for generic categories within a date range."""
     conn = get_connection()
     try:
-        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
-        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        s_date = safe_date_string(start_date)
+        e_date = safe_date_string(end_date)
 
         query = """
             SELECT

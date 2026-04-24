@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 from src.utils import db_utils
+from src.utils.constants import MAX_UPLOAD_SIZE_BYTES
 
 def render_eod_tools(raw_inventory_df):
     st.header("EOD Inventory Count")
@@ -87,8 +88,8 @@ def render_bulk_operations(raw_inventory_df):
     with col_up_inv:
         inv_file = st.file_uploader("Upload Inventory (.csv)", type=["csv"], key="inv_upload")
         if inv_file:
-            if inv_file.size > 10 * 1024 * 1024:
-                st.error("File too large. Limit is 10MB.")
+            if inv_file.size > MAX_UPLOAD_SIZE_BYTES:
+                st.error(f"File too large. Limit is {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.")
             elif st.button("Process Inventory Update", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_inventory_upload(inv_file)
                 if count > 0:
@@ -122,8 +123,8 @@ def render_bulk_operations(raw_inventory_df):
     with col_up_prod:
         prod_file = st.file_uploader("Upload Recipes (.csv)", type=["csv"], key="prod_upload")
         if prod_file:
-            if prod_file.size > 10 * 1024 * 1024:
-                st.error("File too large. Limit is 10MB.")
+            if prod_file.size > MAX_UPLOAD_SIZE_BYTES:
+                st.error(f"File too large. Limit is {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.")
             elif st.button("Process Recipe Import", type="primary", width="stretch"):
                 count, errors = db_utils.process_bulk_recipe_upload(prod_file)
                 if count > 0:

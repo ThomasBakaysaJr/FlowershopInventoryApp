@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from src.utils import db_utils
+from src.utils.constants import variant_badge, FRAGMENT_REFRESH_SECONDS
 from src.components import date_selector
 from src.components.workspace_dashboard.shared_modals import generic_selection_modal
 
@@ -32,7 +33,7 @@ def handle_undo_production(goal_id, product_name):
         st.session_state['weekly_dash_toast'] = (f"Undid 1 {product_name}", "↩️")
 
 
-@st.fragment(run_every=120)
+@st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["weekly_dashboard"])
 def render():
     if 'weekly_dash_toast' in st.session_state:
         msg, icon = st.session_state.pop('weekly_dash_toast')
@@ -70,7 +71,7 @@ def render():
         return
 
     goals_df['due_date'] = pd.to_datetime(goals_df['due_date'])
-    goals_df['time_rank'] = goals_df['time_slot'].map({'AM': 0, 'PM': 1, 'ANY': 2}).fillna(3)
+    # time_rank is already set by get_production_goals_range via normalize_time_slots
     goals_df = goals_df.sort_values(by=['due_date', 'time_rank', 'Product', 'goal_id'])
 
     for date_val in goals_df['due_date'].dt.date.unique():
@@ -104,12 +105,7 @@ def render_grouped_card(group_df, recipes_df, key_suffix):
             display_name = f"⚠️ {display_name}"
 
         v_type = first_row.get('variant_type', 'STD')
-        if v_type == 'DLX':
-            st.markdown(f"**{display_name}** :blue[**[DLX]**]")
-        elif v_type == 'PRM':
-            st.markdown(f"**{display_name}** :red[**[PRM]**]")
-        else:
-            st.markdown(f"**{display_name}** :green[**[STD]**]")
+        st.markdown(f"**{display_name}** {variant_badge(v_type)}")
 
         st.divider()
 

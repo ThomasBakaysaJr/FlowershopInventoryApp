@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 
 from ._core import get_connection
+from src.utils.utils import safe_date_string, normalize_time_slots
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,8 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
     """Fetches production goals falling within a specific date range."""
     conn = get_connection()
     try:
-        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
-        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        s_date = safe_date_string(start_date)
+        e_date = safe_date_string(end_date)
 
         query = """
         SELECT pg.goal_id, p.product_id, p.display_name as Product, p.active, p.image_data, p.note, p.variant_type, pg.due_date, pg.qty_ordered, pg.qty_fulfilled, pg.time_slot
@@ -37,10 +38,7 @@ def get_production_goals_range(start_date, end_date) -> pd.DataFrame:
         ORDER BY pg.due_date ASC, p.display_name ASC
         """
         df = pd.read_sql_query(query, conn, params=(s_date, e_date))
-
-        if 'time_slot' in df.columns:
-            df['time_slot'] = df['time_slot'].fillna('Any').astype(str).str.strip().str.upper()
-
+        normalize_time_slots(df)
         return df
     except Exception as e:
         logger.error(f"get_production_goals_range: {e}")
@@ -53,8 +51,8 @@ def get_active_and_scheduled_products(start_date, end_date) -> pd.DataFrame:
     """Returns products that are active OR have goals in the date range."""
     conn = get_connection()
     try:
-        s_date = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else str(start_date)
-        e_date = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else str(end_date)
+        s_date = safe_date_string(start_date)
+        e_date = safe_date_string(end_date)
 
         query = """
         SELECT DISTINCT p.product_id, p.display_name

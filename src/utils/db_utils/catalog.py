@@ -7,8 +7,29 @@ from typing import Optional, List, Tuple, Union
 
 from ._core import get_connection
 from src.utils import utils
+from src.utils.constants import VARIANT_SUFFIX_MAP
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_recipe_item(item: Union[Tuple, dict]) -> Optional[Tuple[Optional[int], Optional[int], str, Optional[str], Optional[str]]]:
+    """Unpack one recipe-item input (tuple or dict) into a uniform 5-tuple.
+
+    Returns (item_id, qty, requirement_type, requirement_value, note) or None
+    if the input shape is unrecognized (caller should skip).
+    """
+    if isinstance(item, tuple):
+        item_id, qty = item
+        return item_id, qty, 'Specific', None, None
+    if isinstance(item, dict):
+        return (
+            item.get('id') or item.get('item_id'),
+            item.get('qty'),
+            item.get('type', 'Specific'),
+            item.get('val') or item.get('value'),
+            item.get('note'),
+        )
+    return None
 
 
 def _get_local_image_bytes(product_name: str) -> Optional[bytes]:
@@ -320,26 +341,17 @@ def create_new_product(
         product_id = cursor.lastrowid
 
         for item in recipe_items:
-            if isinstance(item, tuple):
-                item_id, qty = item
-                req_type, req_val = 'Specific', None
-                item_note = None
-            elif isinstance(item, dict):
-                item_id = item.get('id') or item.get('item_id')
-                qty = item.get('qty')
-                req_type = item.get('type', 'Specific')
-                req_val = item.get('val') or item.get('value')
-                item_note = item.get('note')
-            else:
+            normalized = _normalize_recipe_item(item)
+            if normalized is None:
                 continue
-
+            item_id, qty, req_type, req_val, item_note = normalized
             cursor.execute(
                 "INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)",
                 (product_id, item_id, qty, req_type, req_val, item_note),
             )
 
         if goal_date and goal_qty > 0:
-            d_str = goal_date.strftime('%Y-%m-%d') if hasattr(goal_date, 'strftime') else str(goal_date)
+            d_str = utils.safe_date_string(goal_date)
             cursor.execute(
                 "INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)",
                 (product_id, d_str, goal_qty),
@@ -410,19 +422,10 @@ def update_product_recipe(
         new_p_id = cursor.lastrowid
 
         for item in recipe_items:
-            if isinstance(item, tuple):
-                item_id, qty = item
-                req_type, req_val = 'Specific', None
-                item_note = None
-            elif isinstance(item, dict):
-                item_id = item.get('id') or item.get('item_id')
-                qty = item.get('qty')
-                req_type = item.get('type', 'Specific')
-                req_val = item.get('val') or item.get('value')
-                item_note = item.get('note')
-            else:
+            normalized = _normalize_recipe_item(item)
+            if normalized is None:
                 continue
-
+            item_id, qty, req_type, req_val, item_note = normalized
             cursor.execute(
                 "INSERT INTO recipes (product_id, item_id, qty_needed, requirement_type, requirement_value, note) VALUES (?, ?, ?, ?, ?, ?)",
                 (new_p_id, item_id, qty, req_type, req_val, item_note),
@@ -436,7 +439,7 @@ def update_product_recipe(
             logger.info(f"update_product_recipe: Migrated unfulfilled goals from {current_product_id} to {new_p_id}")
 
         if goal_date and goal_qty > 0:
-            d_str = goal_date.strftime('%Y-%m-%d') if hasattr(goal_date, 'strftime') else str(goal_date)
+            d_str = utils.safe_date_string(goal_date)
             cursor.execute(
                 "INSERT INTO production_goals (product_id, due_date, qty_ordered, qty_fulfilled) VALUES (?, ?, ?, 0)",
                 (new_p_id, d_str, goal_qty),
@@ -626,10 +629,9 @@ def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
                     words = product_name.split()
                     last_word = words[-1].lower() if words else ""
                     variant_type = "STD"
-                    suffix_map = {"standard": "STD", "deluxe": "DLX", "premium": "PRM"}
 
-                    if last_word in suffix_map:
-                        variant_type = suffix_map[last_word]
+                    if last_word in VARIANT_SUFFIX_MAP:
+                        variant_type = VARIANT_SUFFIX_MAP[last_word]
                         base_name = " ".join(words[:-1]).strip()
                     else:
                         base_name = product_name.strip()
