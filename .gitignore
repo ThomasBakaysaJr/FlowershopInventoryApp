@@ -22,3 +22,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Real shop data — kept locally, never committed
+private/

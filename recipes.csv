@@ -1,0 +1,73 @@
+product_id,Product,Price,Type,Product Note,item_id,Ingredient,Note,Qty,Category
+1001,Rose Dozen Crimson Standard,95,Standard,,101,Rose Crimson,,12,stem
+1001,Rose Dozen Crimson Standard,95,Standard,,,Any stem,Greenery,1,stem
+1001,Rose Dozen Crimson Standard,95,Standard,,201,Vase Classic Clear,,1,hardgood
+1002,Rose Dozen Crimson Deluxe,109,Deluxe,,101,Rose Crimson,,12,stem
+1002,Rose Dozen Crimson Deluxe,109,Deluxe,,,Any stem,Greenery,1,stem
+1002,Rose Dozen Crimson Deluxe,109,Deluxe,,,Any stem,Filler,1,stem
+1002,Rose Dozen Crimson Deluxe,109,Deluxe,,201,Vase Classic Clear,,1,hardgood
+1003,Rose Dozen Crimson Premium,128,Premium,,101,Rose Crimson,,12,stem
+1003,Rose Dozen Crimson Premium,128,Premium,,,Any stem,Greenery,1,stem
+1003,Rose Dozen Crimson Premium,128,Premium,,,Any stem,Filler,1,stem
+1003,Rose Dozen Crimson Premium,128,Premium,,,Any stem,Eucalyptus,2,stem
+1003,Rose Dozen Crimson Premium,128,Premium,,201,Vase Classic Clear,,1,hardgood
+1004,Rose Dozen Blush Standard,95,Standard,,102,Rose Blush,,12,stem
+1004,Rose Dozen Blush Standard,95,Standard,,,Any stem,Greenery,1,stem
+1004,Rose Dozen Blush Standard,95,Standard,,203,Vase Ruby Cube,,1,hardgood
+1005,Rose Dozen Blush Deluxe,109,Deluxe,,102,Rose Blush,,12,stem
+1005,Rose Dozen Blush Deluxe,109,Deluxe,,,Any stem,Greenery,1,stem
+1005,Rose Dozen Blush Deluxe,109,Deluxe,,,Any stem,Filler,1,stem
+1005,Rose Dozen Blush Deluxe,109,Deluxe,,203,Vase Ruby Cube,,1,hardgood
+1006,Rose Dozen Blush Premium,128,Premium,,102,Rose Blush,,12,stem
+1006,Rose Dozen Blush Premium,128,Premium,,,Any stem,Greenery,1,stem
+1006,Rose Dozen Blush Premium,128,Premium,,,Any stem,Filler,1,stem
+1006,Rose Dozen Blush Premium,128,Premium,,,Any stem,Eucalyptus,2,stem
+1006,Rose Dozen Blush Premium,128,Premium,,203,Vase Ruby Cube,,1,hardgood
+1007,Lily Elegance Standard,85,Standard,,105,Lily Stargazer,,5,stem
+1007,Lily Elegance Standard,85,Standard,,,Any stem,Greenery,1,stem
+1007,Lily Elegance Standard,85,Standard,,202,Vase Tall Frosted,,1,hardgood
+1008,Lily Elegance Deluxe,98,Deluxe,,105,Lily Stargazer,,5,stem
+1008,Lily Elegance Deluxe,98,Deluxe,,,Any stem,Greenery,1,stem
+1008,Lily Elegance Deluxe,98,Deluxe,,,Any stem,Filler,1,stem
+1008,Lily Elegance Deluxe,98,Deluxe,,202,Vase Tall Frosted,,1,hardgood
+1009,Lily Elegance Premium,115,Premium,,105,Lily Stargazer,,5,stem
+1009,Lily Elegance Premium,115,Premium,,,Any stem,Greenery,1,stem
+1009,Lily Elegance Premium,115,Premium,,,Any stem,Filler,1,stem
+1009,Lily Elegance Premium,115,Premium,,,Any stem,Eucalyptus,2,stem
+1009,Lily Elegance Premium,115,Premium,,202,Vase Tall Frosted,,1,hardgood
+1010,Tulip Spring Mix Standard,60,Standard,,107,Tulip Yellow,,15,stem
+1010,Tulip Spring Mix Standard,60,Standard,,,Any stem,Greenery,1,stem
+1010,Tulip Spring Mix Standard,60,Standard,,201,Vase Classic Clear,,1,hardgood
+1011,Tulip Spring Mix Deluxe,69,Deluxe,,107,Tulip Yellow,,15,stem
+1011,Tulip Spring Mix Deluxe,69,Deluxe,,,Any stem,Greenery,1,stem
+1011,Tulip Spring Mix Deluxe,69,Deluxe,,,Any stem,Filler,1,stem
+1011,Tulip Spring Mix Deluxe,69,Deluxe,,201,Vase Classic Clear,,1,hardgood
+1012,Tulip Spring Mix Premium,81,Premium,,107,Tulip Yellow,,15,stem
+1012,Tulip Spring Mix Premium,81,Premium,,,Any stem,Greenery,1,stem
+1012,Tulip Spring Mix Premium,81,Premium,,,Any stem,Filler,1,stem
+1012,Tulip Spring Mix Premium,81,Premium,,,Any stem,Eucalyptus,2,stem
+1012,Tulip Spring Mix Premium,81,Premium,,201,Vase Classic Clear,,1,hardgood
+1013,Carnation Cheer Standard,45,Standard,,108,Carnation Pink,,18,stem
+1013,Carnation Cheer Standard,45,Standard,,,Any stem,Greenery,1,stem
+1013,Carnation Cheer Standard,45,Standard,,203,Vase Ruby Cube,,1,hardgood
+1014,Carnation Cheer Deluxe,52,Deluxe,,108,Carnation Pink,,18,stem
+1014,Carnation Cheer Deluxe,52,Deluxe,,,Any stem,Greenery,1,stem
+1014,Carnation Cheer Deluxe,52,Deluxe,,,Any stem,Filler,1,stem
+1014,Carnation Cheer Deluxe,52,Deluxe,,203,Vase Ruby Cube,,1,hardgood
+1015,Carnation Cheer Premium,61,Premium,,108,Carnation Pink,,18,stem
+1015,Carnation Cheer Premium,61,Premium,,,Any stem,Greenery,1,stem
+1015,Carnation Cheer Premium,61,Premium,,,Any stem,Filler,1,stem
+1015,Carnation Cheer Premium,61,Premium,,,Any stem,Eucalyptus,2,stem
+1015,Carnation Cheer Premium,61,Premium,,203,Vase Ruby Cube,,1,hardgood
+1016,Daisy Sunshine Standard,50,Standard,,109,Daisy Classic,,14,stem
+1016,Daisy Sunshine Standard,50,Standard,,,Any stem,Greenery,1,stem
+1016,Daisy Sunshine Standard,50,Standard,,201,Vase Classic Clear,,1,hardgood
+1017,Daisy Sunshine Deluxe,57,Deluxe,,109,Daisy Classic,,14,stem
+1017,Daisy Sunshine Deluxe,57,Deluxe,,,Any stem,Greenery,1,stem
+1017,Daisy Sunshine Deluxe,57,Deluxe,,,Any stem,Filler,1,stem
+1017,Daisy Sunshine Deluxe,57,Deluxe,,201,Vase Classic Clear,,1,hardgood
+1018,Daisy Sunshine Premium,68,Premium,,109,Daisy Classic,,14,stem
+1018,Daisy Sunshine Premium,68,Premium,,,Any stem,Greenery,1,stem
+1018,Daisy Sunshine Premium,68,Premium,,,Any stem,Filler,1,stem
+1018,Daisy Sunshine Premium,68,Premium,,,Any stem,Eucalyptus,2,stem
+1018,Daisy Sunshine Premium,68,Premium,,201,Vase Classic Clear,,1,hardgood
