@@ -36,11 +36,11 @@ Two design decisions worth calling out:
 
 ## Tech Stack
 
-* **Language:** Python 3.11+ (pandas 3.x requires 3.11 or newer)
+* **Language:** Python 3.11+ — CI tests 3.11 and 3.12 (pandas 3.x dropped 3.10)
 * **UI Framework:** Streamlit (no HTML/CSS/JS)
 * **Database:** SQLite (local `inventory.db`)
 * **Image Processing:** Pillow — resizes/compresses uploads into BLOBs
-* **CI:** GitHub Actions — ruff, pytest, pip-audit, bandit
+* **CI:** GitHub Actions — ruff + pytest across a 3.11/3.12 matrix, plus pip-audit and bandit
 * **Deployment:** Local network only (host PC acts as server)
 
 ## Database Schema
@@ -50,7 +50,7 @@ Two design decisions worth calling out:
 ## Getting Started
 
 ### Prerequisites
-* Python 3.11 or newer
+* Python 3.11 or newer (declared in `pyproject.toml`; `app.py` exits early on anything older)
 
 1. Clone the repository:
    ```bash

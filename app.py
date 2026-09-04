@@ -1,3 +1,16 @@
+import sys
+
+# Fail fast with a clear message rather than a confusing dependency traceback.
+# The floor is declared in pyproject.toml (requires-python) and tested in CI.
+# noqa on UP036: ruff treats requires-python as a guarantee, but this app is
+# never pip-installed (no build backend), so nothing actually enforces it.
+# The check is reachable and is the only thing that stops a 3.10 run.
+if sys.version_info < (3, 11):  # noqa: UP036
+    raise SystemExit(
+        "This app requires Python 3.11 or newer (pandas 3.x dropped 3.10). "
+        f"Found {sys.version.split()[0]}."
+    )
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler

@@ -1,5 +1,12 @@
+[project]
+name = "flowershop-inventory-app"
+version = "0.1.0"
+# Single source of truth for the supported Python floor.
+# pandas 3.x dropped 3.10. Ruff infers its lint target from this value, so it is
+# deliberately NOT duplicated as [tool.ruff] target-version.
+requires-python = ">=3.11"
+
 [tool.ruff]
-target-version = "py311"
 line-length = 120
 exclude = [".venv", "venv", "__pycache__", ".pytest_cache", ".ruff_cache"]
 

@@ -37,6 +37,8 @@ ruff check .
 ruff check . --fix
 ```
 
+**Supported Python: 3.11+.** The floor is declared once, in `pyproject.toml` (`project.requires-python`) — ruff infers its lint target from it, so do not re-add a `target-version`. `app.py` guards it at runtime, and CI tests both 3.11 and 3.12. The constraint comes from pandas 3.x, which dropped 3.10. Local dev and the CI security job both run 3.12 (the Ubuntu 24.04 system interpreter).
+
 One-shot data-prep scripts live in `scripts/` and are not part of the running app. They use working-directory-relative paths, so run them **from the repo root** (`python scripts/make_csv.py`). See `scripts/README.md`.
 
 ## Architecture
