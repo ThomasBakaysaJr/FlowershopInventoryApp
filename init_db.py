@@ -3,7 +3,7 @@ import os
 import sqlite3
 import sys
 
-# Configure logging to match GEMINI.md standards
+# Logging: file handler writes to logs/app.log; see also app.py.
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
