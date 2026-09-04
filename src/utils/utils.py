@@ -1,6 +1,5 @@
 import io
 import logging
-from typing import Optional, Tuple, Union
 
 import pandas as pd
 from PIL import Image
@@ -10,10 +9,10 @@ from src.utils.constants import time_slot_rank
 logger = logging.getLogger(__name__)
 
 def process_image(
-    image_input: Union[str, io.BytesIO, bytes],
-    max_size: Tuple[int, int] = (800, 800),
+    image_input: str | io.BytesIO | bytes,
+    max_size: tuple[int, int] = (800, 800),
     quality: int = 85
-) -> Optional[bytes]:
+) -> bytes | None:
     """Resizes and compresses an image to JPEG bytes for database storage."""
     if not image_input:
         return None

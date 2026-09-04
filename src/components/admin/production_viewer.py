@@ -1,23 +1,25 @@
-import streamlit as st
 import pandas as pd
-from src.utils import db_utils
-from src.utils.constants import variant_badge, FRAGMENT_REFRESH_SECONDS
+import streamlit as st
+
 from src.components import date_selector
+from src.utils import db_utils
+from src.utils.constants import FRAGMENT_REFRESH_SECONDS, variant_badge
+
 
 @st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["production_viewer"])
 def render_production_viewer():
     st.header("📅 Production Manager")
-    
+
     # 1. Date Selection
     start_date, end_date = date_selector.render("prod_view")
-    
+
     if start_date > end_date:
         return
 
     # 2. Fetch Data
     # Get list of products that are either active OR have goals in this range
     product_options_df = db_utils.get_active_and_scheduled_products(start_date, end_date)
-    
+
     # Get the actual goals
     goals_df = db_utils.get_production_goals_range(start_date, end_date)
 
@@ -52,14 +54,14 @@ def render_production_viewer():
         # time_slot + time_rank are already normalized by get_production_goals_range.
         goals_df = goals_df.copy()
         goals_df = goals_df.sort_values(by=['due_date', 'Product', 'time_rank'])
-        
+
         # Indicate archived status
         if 'active' in goals_df.columns:
             goals_df['Product'] = goals_df.apply(
-                lambda x: f"⚠️{x['Product']}" if x['active'] == 0 else x['Product'], 
+                lambda x: f"⚠️{x['Product']}" if x['active'] == 0 else x['Product'],
                 axis=1
             )
-        
+
         # Interactive Goal Management Table
         with st.container(border=True):
             # Header Row
@@ -69,15 +71,15 @@ def render_production_viewer():
             h3.markdown("**Progress**")
             h4.markdown("**Edit Target**")
             h5.markdown("**Del**")
-            
+
             for _, row in goals_df.iterrows():
                 c1, c2, c3, c4, c5 = st.columns([1, 2, 1, 1, 0.5], vertical_alignment="center")
-                
+
                 with c1:
                     # Handle string dates if they come back as strings from the range query
                     d_val = pd.to_datetime(row['due_date'])
                     date_str = d_val.strftime('%b %d')
-                    
+
                     t_slot = row.get('time_slot', 'ANY')
                     if t_slot == 'AM':
                         st.markdown(f"{date_str} :blue[**AM**]")
@@ -91,17 +93,17 @@ def render_production_viewer():
                     st.markdown(f"{p_name} {variant_badge(v_type)}")
                 with c3:
                     st.write(f"{row['qty_fulfilled']} / {row['qty_ordered']}")
-                
+
                 with c4:
                     # EDIT QUANTITY Logic
                     new_val = st.number_input(
-                        "Qty", 
-                        min_value=1, 
-                        value=int(row['qty_ordered']), 
+                        "Qty",
+                        min_value=1,
+                        value=int(row['qty_ordered']),
                         label_visibility="collapsed",
                         key=f"edit_qty_{row['goal_id']}"
                     )
-                    
+
                     if new_val != row['qty_ordered']:
                         if st.button("💾", key=f"save_qty_{row['goal_id']}", help="Save new quantity", width="stretch"):
                             result = db_utils.update_goal_quantity(row['goal_id'], new_val)

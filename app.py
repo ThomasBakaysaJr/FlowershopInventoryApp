@@ -1,12 +1,13 @@
-import streamlit as st
-import os
 import logging
+import os
 from logging.handlers import RotatingFileHandler
-from src.utils import db_utils
-from src.components import workspace_dashboard, admin, recipe_display, design
-from src.components.workspace_dashboard import production_dashboard
-from src.components.admin import admin_inventory_view, production_viewer, forecaster, admin_settings
 
+import streamlit as st
+
+from src.components import admin, design, recipe_display, workspace_dashboard
+from src.components.admin import admin_inventory_view, admin_settings, forecaster, production_viewer
+from src.components.workspace_dashboard import production_dashboard
+from src.utils import db_utils
 
 st.set_page_config(page_title="University Flowers Dashboard", layout="wide")
 
@@ -35,7 +36,7 @@ else:
     # We update the state BEFORE the widgets are instantiated in the new run
     if "pending_nav_main" in st.session_state:
         st.session_state.nav_main = st.session_state.pop("pending_nav_main")
-    
+
     if "pending_nav_admin" in st.session_state:
         st.session_state.nav_admin = st.session_state.pop("pending_nav_admin")
 
@@ -62,13 +63,13 @@ else:
     # Reset recipe editor state if we are not in the Design Studio
     # This ensures that navigating away (e.g. to Recipe Book) clears unsaved edits.
     is_in_design_studio = (st.session_state.nav_main == "🎨 Designer Space" and st.session_state.get("nav_design") == "✏️ Design Studio")
-    
+
     if not is_in_design_studio:
         # Use list() to create a copy of keys to avoid runtime errors during deletion
         for k in list(st.session_state.keys()):
             if k.startswith("recipe_state_"):
                 del st.session_state[k]
-            
+
     # Reset Designer Studio selection shadows if we leave the Designer Space entirely OR switch to Recipe Book
     # This ensures that returning to the Design Studio manually defaults to 'Create New'
     if st.session_state.nav_main != "🎨 Designer Space" or st.session_state.get("nav_design") == "📖 Recipe Book":
@@ -92,13 +93,13 @@ else:
 
         elif st.session_state.nav_workspace == "📅 Upcoming Orders":
             workspace_dashboard.dashboard.render_designer_dashboard()
-            
+
         elif st.session_state.nav_workspace == "🖩 Calculator":
             pass
 
     elif st.session_state.nav_main == "🎨 Designer Space":
         raw_inventory_df = db_utils.get_inventory()
-        
+
         if "nav_design" not in st.session_state:
             st.session_state.nav_design = "📖 Recipe Book"
 
@@ -108,7 +109,7 @@ else:
             key="nav_design",
             label_visibility="collapsed"
         )
-        
+
         if st.session_state.nav_design == "📖 Recipe Book":
             recipe_display.render_recipe_display(allow_edit=True)
 
@@ -117,7 +118,7 @@ else:
 
     elif st.session_state.nav_main == "⚙️ Admin Space":
         raw_inventory_df = db_utils.get_inventory()
-        
+
         valid_admin = ["📊 Stock Levels", "📅 Production Manager", "🔮 Forecaster", "📋 EOD Inventory Count", "📦 Bulk Operations", "⚙️ Settings"]
         if "nav_admin" not in st.session_state or st.session_state.nav_admin not in valid_admin:
             st.session_state.nav_admin = "📊 Stock Levels"
@@ -128,10 +129,10 @@ else:
             key="nav_admin",
             label_visibility="collapsed"
         )
-        
+
         if st.session_state.nav_admin == "📊 Stock Levels":
             admin_inventory_view.render_stock_levels(raw_inventory_df)
-        
+
         elif st.session_state.nav_admin == "📅 Production Manager":
             production_viewer.render_production_viewer()
 
@@ -140,9 +141,9 @@ else:
 
         elif st.session_state.nav_admin == "📋 EOD Inventory Count":
             admin.admin_tools.render_eod_tools(raw_inventory_df)
-            
+
         elif st.session_state.nav_admin == "📦 Bulk Operations":
             admin.admin_tools.render_bulk_operations(raw_inventory_df)
-            
+
         elif st.session_state.nav_admin == "⚙️ Settings":
             admin_settings.render_settings_panel()

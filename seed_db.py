@@ -1,7 +1,9 @@
-import sqlite3
 import os
+import sqlite3
 import uuid
+
 from src.utils import utils
+
 
 def load_image(product_name):
     """Helper to load and compress test images from disk for seeding."""
@@ -11,14 +13,14 @@ def load_image(product_name):
         product_name.lower(),
         product_name
     ]
-    
+
     for var in variations:
         for ext in [".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"]:
             path = os.path.join("images", "test", var + ext)
             if os.path.exists(path):
                 print(f"✅ Found image for '{product_name}': {path}")
                 return utils.process_image(path)
-                
+
     print(f"❌ No image found for '{product_name}' (tried variations in images/test/)")
     return None
 
@@ -67,7 +69,7 @@ def seed_database():
         ("Lily Elegance", 85.00),
         ("Budget Bud Vase", 15.00)
     ]
-    
+
     product_ids = {}
     for name, price in products_to_create:
         img = load_image(name)
@@ -97,7 +99,7 @@ def seed_database():
         (product_ids["Budget Bud Vase"], item_ids["Leather Leaf"], 1),
         (product_ids["Budget Bud Vase"], item_ids["Clear Bud Vase"], 1)
     ]
-    
+
     cursor.executemany('''
         INSERT INTO recipes (product_id, item_id, qty_needed)
         VALUES (?, ?, ?)

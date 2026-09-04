@@ -1,8 +1,10 @@
-import pandas as pd
 import logging
 
-from ._core import get_connection
+import pandas as pd
+
 from src.utils.utils import safe_date_string
+
+from ._core import get_connection
 
 logger = logging.getLogger(__name__)
 

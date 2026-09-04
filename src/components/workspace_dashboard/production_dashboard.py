@@ -1,10 +1,12 @@
-import streamlit as st
-import pandas as pd
 import datetime
 import io
-from src.utils import db_utils
-from src.utils.constants import variant_badge, FRAGMENT_REFRESH_SECONDS
+
+import pandas as pd
+import streamlit as st
+
 from src.components import date_selector
+from src.utils import db_utils
+from src.utils.constants import FRAGMENT_REFRESH_SECONDS, variant_badge
 
 
 @st.fragment(run_every=FRAGMENT_REFRESH_SECONDS["production_overview"])

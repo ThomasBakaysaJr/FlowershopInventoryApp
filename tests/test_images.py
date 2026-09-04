@@ -1,8 +1,9 @@
-import pytest
-import sqlite3
-import os
 import io
+import os
+import sqlite3
 import sys
+
+import pytest
 from PIL import Image
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

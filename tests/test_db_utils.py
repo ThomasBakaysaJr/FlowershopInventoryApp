@@ -1,8 +1,9 @@
-import pytest
-import sqlite3
 import os
+import sqlite3
 import sys
 from unittest.mock import patch
+
+import pytest
 
 # Add parent directory to path to import init_db
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

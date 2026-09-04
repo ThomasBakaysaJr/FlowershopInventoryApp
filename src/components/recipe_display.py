@@ -1,9 +1,12 @@
-import streamlit as st
-import pandas as pd
 import io
 import math
+
+import pandas as pd
+import streamlit as st
+
 from src.utils import db_utils
 from src.utils.constants import variant_badge
+
 
 def render_recipe_display(allow_edit=False):
     st.header("📖 Recipe Book")
@@ -24,7 +27,7 @@ def render_recipe_display(allow_edit=False):
         if st.button("Clear", key="clear_recipe_search", help="Clear Search", width="stretch"):
             st.session_state.recipe_book_search = ""
             st.rerun()
-    
+
     if search_term:
         df = db_utils.filter_dataframe_by_terms(df, 'Product', search_term)
 
@@ -35,22 +38,22 @@ def render_recipe_display(allow_edit=False):
     def render_recipe_list(product_df, key_prefix="rec"):
         # 1. Get Unique Products first
         unique_products = product_df[['product_id', 'Product', 'Price', 'active', 'category', 'ProductNote', 'variant_type']].drop_duplicates()
-        
+
         # --- PAGINATION LOGIC START ---
         ITEMS_PER_PAGE = 10
         total_items = len(unique_products)
         total_pages = max(1, math.ceil(total_items / ITEMS_PER_PAGE))
-        
+
         # Initialize page state for this specific list (active vs archived)
         page_key = f"{key_prefix}_page"
         if page_key not in st.session_state:
             st.session_state[page_key] = 1
-            
+
         # Current Page Indexing
         current_page = st.session_state[page_key]
         start_idx = (current_page - 1) * ITEMS_PER_PAGE
         end_idx = start_idx + ITEMS_PER_PAGE
-        
+
         # Slice the dataframe (Only process these 10 items!)
         batch_products = unique_products.iloc[start_idx:end_idx]
         # --- PAGINATION LOGIC END ---
@@ -75,13 +78,13 @@ def render_recipe_display(allow_edit=False):
             badge = variant_badge(v_type)
 
             display_name = f"{prod['Product']} {badge} - ${prod['Price']:.2f}"
-            
+
             if prod['active'] == 0:
                 display_name = f"⚠️ [Archived] {display_name}"
 
             with st.expander(display_name, expanded=False):
                 c1, c2 = st.columns([1, 3])
-                
+
                 with c1:
                     # Fetch image on demand (Now only happens 10 times max!)
                     img_data = db_utils.get_product_image_by_id(prod['product_id'])
@@ -89,15 +92,15 @@ def render_recipe_display(allow_edit=False):
                         st.image(io.BytesIO(img_data), width="stretch")
                     else:
                         st.text("No Image")
-                    
+
                     if pd.notna(prod['ProductNote']) and prod['ProductNote']:
                         st.info(f"📝 {prod['ProductNote']}")
-                    
+
                     if allow_edit:
                         if st.button("✏️ Edit Recipe", key=f"edit_rec_{prod['product_id']}", width="stretch"):
                             st.session_state['design_edit_name'] = prod['Product']
                             st.rerun()
-                        
+
                         # Only show delete for active products
                         if prod['active'] == 1:
                             with st.popover("🗑️ Delete", use_container_width=True):
@@ -110,7 +113,7 @@ def render_recipe_display(allow_edit=False):
                 with c2:
                     # Filter ingredients for this product
                     ingredients = product_df[product_df['product_id'] == prod['product_id']].copy()
-                    
+
                     if ingredients.empty or pd.isna(ingredients.iloc[0]['Ingredient']):
                         st.info("No ingredients defined.")
                     else:
@@ -125,7 +128,7 @@ def render_recipe_display(allow_edit=False):
                                 "Note": st.column_config.TextColumn("Note")
                             }
                         )
-        
+
         # Controls (Bottom - optional, good for long lists)
         if total_pages > 1 and len(batch_products) > 5:
              st.caption(f"Showing {start_idx + 1}-{min(end_idx, total_items)} of {total_items}")

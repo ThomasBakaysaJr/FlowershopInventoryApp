@@ -1,18 +1,19 @@
-import sqlite3
-import pandas as pd
-import os
 import logging
+import os
+import sqlite3
 import uuid
-from typing import Optional, List, Tuple, Union
 
-from ._core import get_connection
+import pandas as pd
+
 from src.utils import utils
 from src.utils.constants import VARIANT_SUFFIX_MAP
+
+from ._core import get_connection
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_recipe_item(item: Union[Tuple, dict]) -> Optional[Tuple[Optional[int], Optional[int], str, Optional[str], Optional[str]]]:
+def _normalize_recipe_item(item: tuple | dict) -> tuple[int | None, int | None, str, str | None, str | None] | None:
     """Unpack one recipe-item input (tuple or dict) into a uniform 5-tuple.
 
     Returns (item_id, qty, requirement_type, requirement_value, note) or None
@@ -32,7 +33,7 @@ def _normalize_recipe_item(item: Union[Tuple, dict]) -> Optional[Tuple[Optional[
     return None
 
 
-def _get_local_image_bytes(product_name: str) -> Optional[bytes]:
+def _get_local_image_bytes(product_name: str) -> bytes | None:
     """Finds and processes a local image for a product from images/recipes/."""
     image_dir = os.path.join("images", "recipes")
     if not os.path.exists(image_dir):
@@ -155,7 +156,7 @@ def get_recipe_requirements(product_id: int) -> dict:
         conn.close()
 
 
-def get_product_details(product_name: str) -> Optional[dict]:
+def get_product_details(product_name: str) -> dict | None:
     """Fetches full details for a product including all recipe items and variants."""
     conn = get_connection()
     try:
@@ -230,7 +231,7 @@ def get_product_details(product_name: str) -> Optional[dict]:
         conn.close()
 
 
-def get_product_image(product_name: str) -> Optional[bytes]:
+def get_product_image(product_name: str) -> bytes | None:
     """Fetches the thumbnail for a specific active product by name."""
     conn = get_connection()
     try:
@@ -248,7 +249,7 @@ def get_product_image(product_name: str) -> Optional[bytes]:
         conn.close()
 
 
-def get_product_image_by_id(product_id: int) -> Optional[bytes]:
+def get_product_image_by_id(product_id: int) -> bytes | None:
     """Fetches the image for a specific product ID."""
     conn = get_connection()
     try:
@@ -263,7 +264,7 @@ def get_product_image_by_id(product_id: int) -> Optional[bytes]:
         conn.close()
 
 
-def get_product_group_id(product_name: str) -> Optional[str]:
+def get_product_group_id(product_name: str) -> str | None:
     """Fetches the variant_group_id for an active product."""
     conn = get_connection()
     try:
@@ -318,13 +319,13 @@ def check_product_variant(product_name: str, variant_type: str) -> bool:
 def create_new_product(
     name: str,
     selling_price: float,
-    image_bytes: Optional[bytes],
-    recipe_items: List[Union[Tuple[int, int], dict]],
+    image_bytes: bytes | None,
+    recipe_items: list[tuple[int, int] | dict],
     category: str = "Standard",
-    goal_date: Optional[str] = None,
+    goal_date: str | None = None,
     goal_qty: int = 0,
-    note: Optional[str] = None,
-    variant_group_id: Optional[str] = None,
+    note: str | None = None,
+    variant_group_id: str | None = None,
     variant_type: str = "STD",
 ) -> bool:
     """Creates a new product and its associated recipe in a single transaction."""
@@ -372,15 +373,15 @@ def create_new_product(
 def update_product_recipe(
     current_product_id: int,
     new_name: str,
-    recipe_items: List[Union[Tuple[int, int], dict]],
-    image_bytes: Optional[bytes] = None,
-    new_price: Optional[float] = None,
-    variant_group_id: Optional[str] = None,
-    category: Optional[str] = None,
+    recipe_items: list[tuple[int, int] | dict],
+    image_bytes: bytes | None = None,
+    new_price: float | None = None,
+    variant_group_id: str | None = None,
+    category: str | None = None,
     migrate_goals: bool = False,
-    goal_date: Optional[str] = None,
+    goal_date: str | None = None,
     goal_qty: int = 0,
-    note: Optional[str] = None,
+    note: str | None = None,
 ) -> bool:
     """Archives the old product and creates a new version with updated details."""
     conn = get_connection()
@@ -499,7 +500,7 @@ def export_products_csv() -> str:
         conn.close()
 
 
-def process_bulk_recipe_upload(file_obj) -> Tuple[int, List[str]]:
+def process_bulk_recipe_upload(file_obj) -> tuple[int, list[str]]:
     """Imports products/recipes from CSV. Format: Product, Price, Type, Ingredient, Qty."""
     try:
         df = pd.read_csv(file_obj)

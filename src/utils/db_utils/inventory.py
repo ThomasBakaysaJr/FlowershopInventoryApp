@@ -1,15 +1,16 @@
-import sqlite3
-import pandas as pd
 import logging
-from typing import List, Tuple
+import sqlite3
 
-from ._core import get_connection, filter_dataframe_by_terms  # noqa: F401 (re-exported via __init__)
+import pandas as pd
+
+from ._core import filter_dataframe_by_terms, get_connection  # noqa: F401 (re-exported via __init__)
 
 logger = logging.getLogger(__name__)
 
 
 def get_inventory() -> pd.DataFrame:
     import os
+
     from ._core import DB_PATH
     try:
         if not os.path.exists(DB_PATH):
@@ -91,7 +92,7 @@ def add_inventory_item(name: str, category: str, sub_category: str, count: int, 
         conn.close()
 
 
-def get_inventory_categories() -> List[str]:
+def get_inventory_categories() -> list[str]:
     """Returns distinct main categories from the inventory."""
     conn = get_connection()
     try:
@@ -150,7 +151,7 @@ def export_inventory_csv() -> str:
         conn.close()
 
 
-def process_bulk_inventory_upload(file_obj) -> Tuple[int, List[str]]:
+def process_bulk_inventory_upload(file_obj) -> tuple[int, list[str]]:
     """Reads a CSV and updates inventory counts/costs. Matches by ID first, then inserts.
 
     The CSV may include an optional `track_inventory` column (0/1 or true/false).
@@ -287,7 +288,7 @@ def clear_inventory() -> bool:
         conn.close()
 
 
-def process_clipboard_update(text_data: str) -> Tuple[List[str], List[str]]:
+def process_clipboard_update(text_data: str) -> tuple[list[str], list[str]]:
     """Parses lines like 'Rose 50' or 'Vase, 10' to update inventory counts."""
     conn = get_connection()
     updated_items = []

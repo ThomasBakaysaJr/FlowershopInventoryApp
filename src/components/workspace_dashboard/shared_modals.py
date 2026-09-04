@@ -1,5 +1,6 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
 from src.utils import db_utils
 
 
@@ -141,7 +142,7 @@ def adjustment_modal(key_prefix, display_name, product_name, on_confirm, toast_k
     inventory_df = db_utils.get_inventory()
     if not inventory_df.empty:
         inv_options = inventory_df['name'].tolist()
-        inv_map = dict(zip(inventory_df['name'], inventory_df['item_id']))
+        inv_map = dict(zip(inventory_df['name'], inventory_df['item_id'], strict=True))
 
         c1, c2, c3 = st.columns([2, 1, 1])
         with c1:

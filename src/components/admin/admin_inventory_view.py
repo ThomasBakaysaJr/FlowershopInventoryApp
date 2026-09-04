@@ -1,9 +1,10 @@
-import streamlit as st
-import time
 import logging
+import time
+
 import pandas as pd
-from src.utils import db_utils
-from src.utils import settings_utils
+import streamlit as st
+
+from src.utils import db_utils, settings_utils
 from src.utils.constants import FRAGMENT_REFRESH_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def render_stock_levels(raw_inventory_df):
         raw_inventory_df['track_inventory'] = pd.to_numeric(raw_inventory_df['track_inventory'], errors='coerce').fillna(1).astype(int)
 
     st.header("Current Stock Levels")
-    
+
     # --- LOW STOCK WARNING LOGIC ---
     # Only tracked items should raise low-stock alerts. Untracked items are
     # recipe-only (e.g. cut flowers) and aren't expected to carry meaningful stock counts.
@@ -49,26 +50,26 @@ def render_stock_levels(raw_inventory_df):
                 )
     # -------------------------------
 
-    st.text("Please review any changes before saving.")    
+    st.text("Please review any changes before saving.")
 
     if not raw_inventory_df.empty:
         # --- Filter UI ---
         col_cat, col_sub = st.columns(2)
-        
+
         with col_cat:
             categories = sorted([str(c) for c in raw_inventory_df['category'].unique() if c])
             selected_cats = st.multiselect("Category", options=categories, placeholder="Filter by Category")
-            
+
         # Filter for sub-cats based on category selection
         if selected_cats:
             temp_df = raw_inventory_df[raw_inventory_df['category'].isin(selected_cats)]
         else:
             temp_df = raw_inventory_df
-            
+
         with col_sub:
             sub_categories = sorted([str(c) for c in temp_df['sub_category'].unique() if c])
             selected_subs = st.multiselect("Sub-Category", options=sub_categories, placeholder="Filter by Sub-Category")
-            
+
         # Apply Filters
         filtered_df = raw_inventory_df.copy()
         if selected_cats:
@@ -104,8 +105,8 @@ def render_stock_levels(raw_inventory_df):
         changes_count = 0
         changed_rows = []
         diff_data = []
-        
-        for index, row in edited_df.iterrows():
+
+        for _index, row in edited_df.iterrows():
             original = raw_inventory_df[raw_inventory_df['item_id'] == row['item_id']]
             if not original.empty:
                 orig_row = original.iloc[0]
@@ -154,7 +155,7 @@ def render_stock_levels(raw_inventory_df):
         if changes_count > 0:
             st.divider()
             st.caption("Review Changes:")
-            
+
             diff_df = pd.DataFrame(diff_data)
             # Ensure column order for consistent indexing in the styler
             diff_df = diff_df[["Item", "Old Stock", "New Stock", "Old Bundle", "New Bundle", "Old Cost", "New Cost", "Old Track", "New Track"]]

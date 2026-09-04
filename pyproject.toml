@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [".venv", "venv", "__pycache__", ".pytest_cache", ".ruff_cache"]
+
+[tool.ruff.lint]
+# Default rules (pycodestyle errors + pyflakes) plus a few high-value additions.
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # line length is handled by the formatter, not worth failing CI over
+    "B008",   # function call in default arg — common and intentional in Streamlit callbacks
+]
+
+[tool.ruff.lint.per-file-ignores]
+# One-shot data-prep scripts: embedded data dumps and ad-hoc style are acceptable.
+"scripts/*" = ["E", "W", "I", "UP", "B"]

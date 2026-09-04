@@ -1,6 +1,6 @@
-import sqlite3
 import logging
 import os
+import sqlite3
 import sys
 
 # Configure logging to match GEMINI.md standards

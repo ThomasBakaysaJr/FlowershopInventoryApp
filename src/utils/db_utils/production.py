@@ -1,9 +1,11 @@
-import sqlite3
-import pandas as pd
 import logging
+import sqlite3
+
+import pandas as pd
+
+from src.utils.utils import normalize_time_slots, safe_date_string
 
 from ._core import get_connection
-from src.utils.utils import safe_date_string, normalize_time_slots
 
 logger = logging.getLogger(__name__)
 

@@ -5,14 +5,12 @@ parallel maps) so the deferred migration to user-configurable settings is a
 one-line swap inside each accessor — consumers never need to change.
 """
 
-from typing import List, Optional
-
 
 # ---------------------------------------------------------------------------
 # Variants
 # ---------------------------------------------------------------------------
 
-VARIANTS: List[dict] = [
+VARIANTS: list[dict] = [
     {"code": "STD", "label": "Standard", "color": "green", "order": 1},
     {"code": "DLX", "label": "Deluxe",   "color": "blue",  "order": 2},
     {"code": "PRM", "label": "Premium",  "color": "red",   "order": 3},
@@ -22,7 +20,7 @@ VARIANTS: List[dict] = [
 VARIANT_SUFFIX_MAP = {"standard": "STD", "deluxe": "DLX", "premium": "PRM"}
 
 
-def _find_variant(code: str) -> Optional[dict]:
+def _find_variant(code: str) -> dict | None:
     for v in VARIANTS:
         if v["code"] == code:
             return v
@@ -47,7 +45,7 @@ def variant_order(code: str) -> int:
     return v["order"] if v else 99
 
 
-def variant_codes_sorted() -> List[str]:
+def variant_codes_sorted() -> list[str]:
     """All variant codes in display order."""
     return [v["code"] for v in sorted(VARIANTS, key=lambda v: v["order"])]
 
@@ -75,14 +73,14 @@ def strip_variant_suffix(name: str) -> str:
 # Time slots
 # ---------------------------------------------------------------------------
 
-TIME_SLOTS: List[dict] = [
+TIME_SLOTS: list[dict] = [
     {"code": "AM",  "label": "AM",  "color": "blue",   "order": 1},
     {"code": "PM",  "label": "PM",  "color": "orange", "order": 2},
     {"code": "ANY", "label": "Any", "color": None,     "order": 3},
 ]
 
 
-def _find_time_slot(code: str) -> Optional[dict]:
+def _find_time_slot(code: str) -> dict | None:
     for s in TIME_SLOTS:
         if s["code"] == code:
             return s
@@ -94,7 +92,7 @@ def time_slot_label(code: str) -> str:
     return s["label"] if s else code
 
 
-def time_slot_color(code: str) -> Optional[str]:
+def time_slot_color(code: str) -> str | None:
     s = _find_time_slot(code)
     return s["color"] if s else None
 

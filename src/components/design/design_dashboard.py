@@ -1,19 +1,22 @@
 import streamlit as st
+
 from src.utils import db_utils
+
 from . import design_product_details
+
 
 def render_design_dashboard():
     st.title("🎨 Designer Studio")
-    
+
     # Fetch active options once at the top to use for validation and display
     options_df = db_utils.get_active_product_options()
     active_names = options_df['display_name'].tolist() if not options_df.empty else []
-    
+
     # --- State Restoration (Shadow Keys) ---
     # Restore widget state if it was lost during navigation (e.g. visiting Recipe Book)
     if "design_mode_radio" not in st.session_state and "shadow_design_mode" in st.session_state:
         st.session_state["design_mode_radio"] = st.session_state["shadow_design_mode"]
-    
+
     # Only restore product selection if we are actually in Edit mode
     if st.session_state.get("shadow_design_mode") == "Edit Existing":
         if "design_product_select" not in st.session_state and "shadow_design_product" in st.session_state:
@@ -24,7 +27,7 @@ def render_design_dashboard():
     # We transfer the intent into the widget state keys to persist across reruns
     if "design_edit_name" in st.session_state:
         target_product = st.session_state.pop("design_edit_name")
-        
+
         # Safety: Only switch mode if the product is actually active/available
         if target_product in active_names:
             st.session_state["design_mode_radio"] = "Edit Existing"
@@ -38,7 +41,7 @@ def render_design_dashboard():
     # Mode Selection
     # We use a key so Streamlit manages the state persistence for us
     mode = st.radio("Mode", ["Create New", "Edit Existing"], horizontal=True, label_visibility="collapsed", key="design_mode_radio")
-    
+
     st.session_state["shadow_design_mode"] = mode # Persist to shadow
     selected_product_name = None
 
@@ -63,7 +66,7 @@ def render_design_dashboard():
 
             # Handle selection persistence safety: Ensure current selection is in options to avoid Streamlit error
             current_selection = st.session_state.get("design_product_select")
-            
+
             # Logic Update: If searching and current selection doesn't match, auto-select the first result
             if search_term and current_selection and current_selection not in filtered_names:
                 if filtered_names:
@@ -79,11 +82,11 @@ def render_design_dashboard():
             # The key 'design_product_select' will pre-select the item if set in session_state above
             selected_product_name = st.selectbox("Select Product", filtered_names, key="design_product_select")
             st.session_state["shadow_design_product"] = selected_product_name # Persist to shadow
-            
+
             if selected_product_name:
                 # Fetch details for the selected specific product first
                 details = db_utils.get_product_details(selected_product_name)
-                
+
                 if not details:
                     st.error("Product not found.")
                 else:
@@ -93,7 +96,7 @@ def render_design_dashboard():
                     variant_map = {v['type']: v for v in variants}
 
                     st.subheader(f"Product Family: {details['name']}")
-                    
+
                     tab_std, tab_dlx, tab_prm = st.tabs(["Standard", "Deluxe", "Premium"])
 
                     with tab_std:
@@ -114,7 +117,7 @@ def render_design_dashboard():
             new_name = st.text_input("Product Name", placeholder="e.g., Summer Breeze")
             new_price = st.number_input("Selling Price ($)", min_value=0.0, step=0.5)
             new_cat = st.selectbox("Category", ["Standard", "Wedding", "Sympathy", "Event", "One-Off"])
-            
+
             if st.form_submit_button("Create Product"):
                 if not new_name:
                     st.error("Please enter a product name.")
@@ -137,5 +140,5 @@ def render_design_dashboard():
                         st.rerun()
                     else:
                         st.error("Failed to create product.")
-        
+
         st.info("Create a base product here. You can add Deluxe/Premium versions later in the editor.")

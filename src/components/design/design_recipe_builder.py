@@ -1,6 +1,8 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
 from src.utils import db_utils
+
 
 def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
     st.markdown("### 🌿 Recipe")
@@ -44,7 +46,7 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                     updated_item['qty'] = row['qty']
                     updated_item['note'] = row['note']
                     new_recipe_list.append(updated_item)
-            
+
             st.session_state[f"recipe_state_{p_id}"] = new_recipe_list
             st.rerun()
     else:
@@ -53,20 +55,20 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
     with st.expander("✏️ Edit Recipe", expanded=True):
         # Toggle for Specific Item vs Generic Category
         ing_type = st.radio("Ingredient Type", ["Specific Item", "Generic Category"], horizontal=True, label_visibility="collapsed", key=f"ing_type_{p_id}")
-        
+
         c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="bottom")
-        
+
         selected_item_id = None
         selected_item_name = None
         selected_cat = None
         custom_note = None
-        
+
         with c1:
             if ing_type == "Specific Item":
                 inv_df = db_utils.get_inventory()
                 inv_options = inv_df['name'].tolist() if not inv_df.empty else []
                 selected_ing = st.selectbox("Select Item", inv_options, key=f"sel_ing_{p_id}")
-                
+
                 if selected_ing and not inv_df.empty:
                     item_row = inv_df[inv_df['name'] == selected_ing].iloc[0]
                     selected_item_id = int(item_row['item_id'])
@@ -82,11 +84,11 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
             qty_add = st.number_input("Qty", min_value=1, value=1, key=f"qty_{p_id}")
         with c3:
             add_btn = st.button("Add", key=f"add_btn_{p_id}")
-        
+
         if add_btn:
             new_recipe = current_recipe.copy()
             found = False
-            
+
             if ing_type == "Specific Item" and selected_item_id:
                 # Check if item already exists in recipe to aggregate
                 for r in new_recipe:
@@ -96,7 +98,7 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                         break
                 if not found:
                     new_recipe.append({'item_id': selected_item_id, 'qty': qty_add, 'type': 'Specific', 'val': None, 'name': selected_item_name, 'note': None})
-            
+
             elif ing_type == "Generic Category" and selected_cat:
                 # Aggregate by (category, note) so repeatedly clicking "Add" on
                 # the same "Any Rose" requirement bumps qty instead of creating
@@ -112,14 +114,14 @@ def render_recipe_editor(p_id, v_details, group_id, v_type, variant_map):
                         break
                 if not found:
                     new_recipe.append({'item_id': None, 'qty': qty_add, 'type': 'Category', 'val': selected_cat, 'name': f"Any {selected_cat}", 'note': custom_note})
-            
+
             st.session_state[f"recipe_state_{p_id}"] = new_recipe
             st.rerun()
 
         if st.button("🗑️ Clear Recipe", key=f"clear_{p_id}"):
             st.session_state[f"recipe_state_{p_id}"] = []
             st.rerun()
-        
+
         # Copy Logic: always copies the SAVED Standard recipe from the DB.
         # Previously this also copied unsaved Standard edits from session state,
         # which coupled three product_ids and silently discarded work on nav-away.

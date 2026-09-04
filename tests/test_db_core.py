@@ -1,7 +1,9 @@
-import sqlite3
-import os
-import sys
 import datetime
+import os
+import sqlite3
+import sys
+
+import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -120,5 +122,23 @@ def test_log_production_targets_specific_goal_id(setup_db):
 
         cursor.execute("SELECT qty_fulfilled FROM production_goals WHERE goal_id = ?", (g_id_early,))
         assert cursor.fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_foreign_keys_enforced(setup_db):
+    """PRAGMA foreign_keys is per-connection and off by default in SQLite.
+
+    get_connection() turns it on for every connection; this pins that it
+    actually takes effect at runtime.
+    """
+    conn = db_utils.get_connection()
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO recipes (product_id, item_id, qty_needed) VALUES (?, ?, ?)",
+                (99999, 1, 1),
+            )
+            conn.commit()
     finally:
         conn.close()

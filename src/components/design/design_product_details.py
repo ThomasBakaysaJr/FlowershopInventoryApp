@@ -1,26 +1,30 @@
-import streamlit as st
 import io
+
+import streamlit as st
+
 from src.utils import db_utils
 from src.utils.constants import strip_variant_suffix
+
 from . import design_recipe_builder
+
 
 def render_variant_tab(v_type, label, variant_map, group_id, base_name, category):
     # Check if variant exists
     if v_type in variant_map:
         v_summary = variant_map[v_type]
         v_details = db_utils.get_product_details(v_summary['name'])
-        
+
         if not v_details:
             st.error(f"Could not load details for {label}")
             return
 
         p_id = v_details['product_id']
-        
+
         col1, col2 = st.columns([1, 2])
-        
+
         with col1:
             render_info_form(p_id, v_details, label, group_id)
-        
+
         with col2:
             design_recipe_builder.render_recipe_editor(p_id, v_details, group_id, v_type, variant_map)
 
@@ -33,20 +37,20 @@ def render_info_form(p_id, v_details, label, group_id):
         st.image(io.BytesIO(v_details['image_data']), caption=f"{label} Preview", width="stretch")
     else:
         st.info("No image available")
-    
+
     new_img = st.file_uploader(f"Update {label} Image", type=['png', 'jpg', 'jpeg'], key=f"img_{p_id}")
-    
+
     with st.form(key=f"form_info_{p_id}"):
         new_name = st.text_input("Display Name", value=v_details['name'])
         new_price = st.number_input("Selling Price ($)", value=float(v_details['price']), step=0.5)
         new_note = st.text_area("Notes", value=v_details['note'] if v_details['note'] else "")
-        
+
         if st.form_submit_button("💾 Save Info"):
             img_bytes = new_img.getvalue() if new_img else None
-            
+
             # Use recipe from session state if available (edited), otherwise use DB version
             final_recipe = st.session_state.get(f"recipe_state_{p_id}", v_details['recipe'])
-            
+
             success = db_utils.update_product_recipe(
                 current_product_id=p_id,
                 new_name=new_name,
@@ -67,10 +71,10 @@ def render_info_form(p_id, v_details, label, group_id):
     # Duplicate Feature
     if st.button("©️ Duplicate as New Product", key=f"dup_{p_id}", help="Creates a new Product Family based on this variant."):
         new_name = f"{v_details['name']} (Copy)"
-        
+
         # Use recipe from session state if available (edited), otherwise use DB version
         final_recipe = st.session_state.get(f"recipe_state_{p_id}", v_details['recipe'])
-        
+
         success = db_utils.create_new_product(
             name=new_name,
             selling_price=v_details['price'],
@@ -80,7 +84,7 @@ def render_info_form(p_id, v_details, label, group_id):
             note=v_details['note'],
             variant_type="STD" # Start as Standard of new family
         )
-        
+
         if success:
             st.success(f"Created {new_name}!")
             # Trigger edit mode for the new product
@@ -92,7 +96,7 @@ def render_create_button(v_type, label, base_name, group_id, category):
     if st.button(f"➕ Create {label} Version", key=f"create_{v_type}"):
         clean_base = strip_variant_suffix(base_name)
         new_name = f"{clean_base} {label}"
-        
+
         success = db_utils.create_new_product(
             name=new_name,
             selling_price=0.0,

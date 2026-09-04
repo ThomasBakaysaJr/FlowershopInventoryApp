@@ -1,5 +1,4 @@
-streamlit
-pandas
-Pillow
-pytest
-ruff
+# Runtime dependencies. Dev/CI tools live in requirements-dev.txt.
+streamlit>=1.56,<2
+pandas>=3.0,<4
+Pillow>=12.2,<13
