@@ -96,7 +96,7 @@ else:
 
         st.segmented_control(
             "Workspace Navigation",
-            options=["📊 Production Overview", "📅 Upcoming Orders", "🖩 Calculator"],
+            options=["📊 Production Overview", "📅 Upcoming Orders"],
             key="nav_workspace",
             label_visibility="collapsed"
         )
@@ -106,9 +106,6 @@ else:
 
         elif st.session_state.nav_workspace == "📅 Upcoming Orders":
             workspace_dashboard.dashboard.render_designer_dashboard()
-
-        elif st.session_state.nav_workspace == "🖩 Calculator":
-            pass
 
     elif st.session_state.nav_main == "🎨 Designer Space":
         raw_inventory_df = db_utils.get_inventory()

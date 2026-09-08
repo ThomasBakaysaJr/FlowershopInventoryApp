@@ -93,26 +93,24 @@ def render_forecaster():
             stock = inv_row.iloc[0]['count_on_hand']
             bundle_size = inv_row.iloc[0]['bundle_count']
 
-            # Calculate Deficit
-            # Note: Stock is in units (bundles), but recipe is usually in stems/singles?
-            # Wait, usually inventory count_on_hand is physical units.
-            # If recipe calls for 12 stems, and bundle is 25 stems.
-            # We need to know if recipe qty is in stems or units.
-            # Assuming recipe qty is raw units (e.g. stems) and inventory is packs.
-            # Actually, standard practice: Inventory Count * Bundle Count = Total Stems Available.
-
-            total_available_stems = stock
-            net_need = needed_qty - total_available_stems
-
-            deficit_stems = max(0, net_need)
-            bundles_to_buy = math.ceil(deficit_stems / bundle_size) if deficit_stems > 0 else 0
+            # UNITS: count_on_hand holds individual units (stems), not packs. The EOD
+            # sheet is counted in bundles and process_clipboard_update multiplies up
+            # (count * bundle_count - loss) before storing. recipes.qty_needed is in the
+            # same units, so demand and stock subtract directly. bundle_count is used
+            # only to round the purchase up to whole packs.
+            deficit_units = max(0, needed_qty - stock)
+            bundles_to_buy = (
+                math.ceil(deficit_units / bundle_size)
+                if deficit_units > 0 and bundle_size > 0
+                else 0
+            )
 
             results.append({
                 "Ingredient": name,
                 "Total Needed": needed_qty,
-                "Current Stock (Packs)": stock,
+                "Current Stock (Units)": stock,
                 "Bundle Size": bundle_size,
-                "Deficit (Units)": deficit_stems,
+                "Deficit (Units)": deficit_units,
                 "To Buy (Packs)": bundles_to_buy
             })
 

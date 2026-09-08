@@ -34,6 +34,30 @@ Two design decisions worth calling out:
 
 **Immutable product updates.** Products are never mutated in place. Editing a recipe archives the old row (`active = 0`) and inserts a new one in a single transaction, optionally migrating unfulfilled goals to the new `product_id`. Historical production logs therefore keep pointing at the exact recipe that was used at the time. Since `product_id` changes on every edit, components follow a product across edits via its `variant_group_id` UUID instead.
 
+## Built with Claude
+
+This project was built with AI assistance throughout, and since the *how* is more interesting than the fact, here is the honest version.
+
+The initial build — 118 commits across eight days in February — ran on a different assistant. Claude Code did the April and September work, which is where the architecture actually got fixed. That is the part worth reading, and the part the commit history is worth scrolling for.
+
+**How I work with it.** The repo keeps a single living context document (`CLAUDE.md`) describing the architecture, the deliberate decisions, and the known gaps. It is maintained, not generated once — including a convention added after getting burned: cite functions and files by name, never by line number, because line numbers went stale inside a single refactor and function names did not. I describe behavior in terms of what happens on the shop floor, review what comes back, and correct the parts that misunderstand the domain.
+
+**What I decided, not the tool:**
+
+* **The `track_inventory` flag.** The obvious design is an all-or-nothing bill of materials — every recipe ingredient is stock, every production event deducts it. That is wrong for a florist. The shop counts vases and hard goods; it does not count individual stems, and pretending otherwise produces numbers nobody trusts and everybody stops updating. So tracking is a per-item toggle the user controls, and an untracked ingredient is a costing reference the app never decrements. It propagates through production logging, undo, low-stock alerts, the end-of-day count, and the substitution modal — a partially untracked recipe is a supported state everywhere, not an edge case. It deliberately does **not** propagate to the forecaster, which is a purchasing view: the flowers you do not count are exactly the ones you need to order.
+* **Immutable product updates.** Covered above. The cost is that `product_id` changes on every edit, which is why anything following a product across edits uses a `variant_group_id` UUID instead.
+* **Over-production is legal.** Logging past `qty_ordered` is not blocked. If the designer made fourteen arrangements against an order of twelve, fourteen exist. Blocking it would make the app disagree with the room it is installed in.
+
+**Where I overrode the design I had been handed.** Production was originally two-step: *make* moved raw inventory into a `stock_on_hand` column representing the walk-in cooler, then *pack* moved cooler stock into fulfilled orders, with an `action_type` column tracking which step happened and separate undo paths for each. That "Cooler Buffer" model was written into the AI context file as a stated project constraint, and I built inside it for two months.
+
+It was wrong. It modeled a staging step the shop does not actually perform as a discrete state, and it bought nothing — an audit found `stock_on_hand` was written about eleven times across the catalog layer and meaningfully read by nothing. So I collapsed production to a single step, dropped both columns, deleted the orphaned forecasting function and an unimported module that existed to serve them, and removed the model from the context file so it would stop being treated as a given. `track_inventory` is what replaced it — a per-item flag that matches how the floor works instead of an abstraction that only matched a diagram.
+
+The two commits are `refactor: collapse production flow` and `refactor: purge cooler-era fossils from schema and code`; the second names each dropped column and why it went.
+
+**Handling real data.** This is a public repo for a working business, so the shop's actual catalog is not in it. Real product names, wholesale costs, and item IDs live in a gitignored `private/`; the `recipes.csv` in the tree is synthetic output from a generator, kept working so the bulk-import format still has a real example. Same rule for `inventory.db` and `settings.json` — the schema is public, the shop's numbers are not.
+
+**What is not done.** `CLAUDE.md` carries a `Known Gaps` section listing the real unfixed issues: an untested bulk-import path, an unused pricing function, mixed line endings, and an inventory unit convention that is stated but not enforced at the write side. I would rather carry those in writing than have them found. The largest: this runs on the shop's local network only. Moving it to Postgres behind a `DATABASE_URL` environment variable is the planned next step, and the data layer is written so that is a swap rather than a rewrite.
+
 ## Tech Stack
 
 * **Language:** Python 3.11+ — CI tests 3.11 and 3.12 (pandas 3.x dropped 3.10)
