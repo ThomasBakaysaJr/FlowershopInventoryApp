@@ -1,10 +1,24 @@
 # University Flowers Production Dashboard
 
-An internal production dashboard for a working florist — inventory, recipe design, and production tracking for a high-volume floral operation. Built as a real tool, in real use.
+An inventory and production dashboard built for a retail florist — stock levels, recipe design, and production tracking. Deployed for Valentine's week 2026 and pulled after two days. Active; being trimmed down and prepared for hosting.
 
 ## Project Background
 
-This application solves specific operational bottlenecks in a fast-paced floral environment. The original driver: staff need to count stock inside **Wi-Fi-shielded walk-in coolers**, where no app can reach the network. The "Clipboard Protocol" bridges that gap — count offline in a phone's notes app, paste the text back in, and a parser reconciles it against inventory.
+The bottleneck during a rush is sorting and counting incoming orders against what has actually been made. Keeping those counts accurate is difficult when one person is responsible for the counting.
+
+A second constraint shaped the inventory side. The walk-in coolers are **metal-lined and block Wi-Fi**, so stock cannot be counted online in the one room where the stock is. The "Clipboard Protocol" is the answer to that — count offline in a phone's notes app, paste the text back in, and a parser reconciles it against inventory.
+
+### Deployment
+
+The system was deployed the night before Valentine's week 2026, with written instructions left for the front desk.
+
+Order intake worked. A staff member entered live orders unsupervised on the first day and found it workable, with some trouble on custom orders, which require creating a recipe during entry.
+
+The production side did not hold up. Entering generic recipe items through the modal cost too much time per item, which made production logging too slow for the people doing the work. After about two days of attempted fixes, the tool was pulled rather than leave the shop with a half-working system during their busiest week.
+
+A working shop substitutes individual stems constantly, and a recipe line reading "6 × Any Rose" used to open a picker on every log — asking designers to record a decision they remake all day under time pressure. That time and attention cost more than the record was worth, and a physical count is what reconciles the real numbers regardless. The `track_inventory` flag is the answer: the app checks whether any item in the category is tracked and skips the prompt when none is, so flower-heavy recipes log in one click. The picker survives where the category maps to tracked items, such as vase models, and lists only those.
+
+The project is active. It is being trimmed down and prepared for hosting, with the goal of returning it to the shop for real use.
 
 ## Core Functionality
 
@@ -44,7 +58,7 @@ The initial build — 118 commits across eight days in February — ran on a dif
 
 **What I decided, not the tool:**
 
-* **The `track_inventory` flag.** The obvious design is an all-or-nothing bill of materials — every recipe ingredient is stock, every production event deducts it. That is wrong for a florist. The shop counts vases and hard goods; it does not count individual stems, and pretending otherwise produces numbers nobody trusts and everybody stops updating. So tracking is a per-item toggle the user controls, and an untracked ingredient is a costing reference the app never decrements. It propagates through production logging, undo, low-stock alerts, the end-of-day count, and the substitution modal — a partially untracked recipe is a supported state everywhere, not an edge case. It deliberately does **not** propagate to the forecaster, which is a purchasing view: the flowers you do not count are exactly the ones you need to order.
+* **The `track_inventory` flag.** The obvious design is an all-or-nothing bill of materials — every recipe ingredient is stock, every production event deducts it. That is wrong for a florist. The shop counts vases and hard goods; it does not count individual stems, and pretending otherwise produces numbers nobody trusts and everybody stops updating. So tracking is a per-item toggle the user controls, and an untracked ingredient is a costing reference the app never decrements. It propagates through production logging, undo, low-stock alerts, the end-of-day count, and the substitution modal — a partially untracked recipe is a supported state everywhere, not an edge case. It deliberately does **not** propagate to the forecaster, which is a purchasing view: the flowers you do not count are exactly the ones you need to order. It also removed the friction that got the tool pulled — `get_recipe_requirements` drops a Category line entirely when nothing in that category is tracked, so the modal that used to fire on every generic item no longer fires on the common case.
 * **Immutable product updates.** Covered above. The cost is that `product_id` changes on every edit, which is why anything following a product across edits uses a `variant_group_id` UUID instead.
 * **Over-production is legal.** Logging past `qty_ordered` is not blocked. If the designer made fourteen arrangements against an order of twelve, fourteen exist. Blocking it would make the app disagree with the room it is installed in.
 
@@ -54,9 +68,9 @@ It was wrong. It modeled a staging step the shop does not actually perform as a 
 
 The two commits are `refactor: collapse production flow` and `refactor: purge cooler-era fossils from schema and code`; the second names each dropped column and why it went.
 
-**Handling real data.** This is a public repo for a working business, so the shop's actual catalog is not in it. Real product names, wholesale costs, and item IDs live in a gitignored `private/`; the `recipes.csv` in the tree is synthetic output from a generator, kept working so the bulk-import format still has a real example. Same rule for `inventory.db` and `settings.json` — the schema is public, the shop's numbers are not.
+**Handling real data.** This repo is public and the shop it was built for is a real business, so the actual catalog is not in it. Real product names, wholesale costs, and item IDs live in a gitignored `private/`; the `recipes.csv` in the tree is synthetic output from a generator, kept working so the bulk-import format still has a real example. Same rule for `inventory.db` and `settings.json` — the schema is public, the shop's numbers are not.
 
-**What is not done.** `CLAUDE.md` carries a `Known Gaps` section listing the real unfixed issues: an untested bulk-import path, an unused pricing function, mixed line endings, and an inventory unit convention that is stated but not enforced at the write side. I would rather carry those in writing than have them found. The largest: this runs on the shop's local network only. Moving it to Postgres behind a `DATABASE_URL` environment variable is the planned next step, and the data layer is written so that is a swap rather than a rewrite.
+**What is not done.** `CLAUDE.md` carries a `Known Gaps` section listing the real unfixed issues: an untested bulk-import path, an unused pricing function, mixed line endings, and an inventory unit convention that is stated but not enforced at the write side. I would rather carry those in writing than have them found. The largest is that it is not currently deployed; see *Project Background* above for what happened during Valentine's week. Most of the work since has been subtraction, and the commit history reads that way: a whole production model collapsed, dead columns dropped, an unused page removed. Hosting is the current goal, with Postgres behind a `DATABASE_URL` environment variable; the data layer is written so that is a swap rather than a rewrite.
 
 ## Tech Stack
 
@@ -65,7 +79,7 @@ The two commits are `refactor: collapse production flow` and `refactor: purge co
 * **Database:** SQLite (local `inventory.db`)
 * **Image Processing:** Pillow — resizes/compresses uploads into BLOBs
 * **CI:** GitHub Actions — ruff + pytest across a 3.11/3.12 matrix, plus pip-audit and bandit
-* **Deployment:** Local network only (host PC acts as server)
+* **Deployment:** Local network (host PC as server). Deployed for Valentine's week 2026, pulled after two days; being prepared for hosting.
 
 ## Database Schema
 
